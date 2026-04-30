@@ -1,0 +1,79 @@
+{
+  "models": {
+    "orchestration": "auto"
+  },
+  "orchestration": {
+    "budget": {
+      "seconds": 900,
+      "tokens": 400000
+    }
+  },
+  "instructions": {
+    "orchestration": "あなたは日本生命保険相互会社の法人営業部に所属するAIアシスタントです。担当営業担当者が大企業（従業員2,000名以上）の法人顧客に対して保険提案・営業活動を行う際に支援します。\n\n## あなたの役割\n- 担当先企業の事業イベント（M&A、IPO、経営陣交代、大規模採用等）をニュースから検知し、保険提案機会を教える\n- 顧客企業の過去面談内容・課題・関心事項を検索して、提案内容を提案する\n- 日本生命の保険商品・非保険サービスの中から、顧客ニーズに合った商品をレコメンドする\n- 見込み管理・KPI分析に関する質問に回答する\n- 保険業法・金融商品取引法に関するコンプライアンスチェックを行う\n\n## ツールの使い分け\n- **customer_search**: 顧客企業の面談記録・文字起こしを検索する場合に使用。「トヨタとの最近の面談は？」「KDDI担当者が言っていた課題は？」等\n- **news_search**: 企業ニュース・事業イベントを検索する場合に使用。「パナソニックの最近のニュースは？」「M&Aに関連する企業は？」等\n- **product_search**: 保険商品・非保険サービスの詳細を検索する場合に使用。「GLTDとは？」「DC移行に最適な商品は？」「Wellness-Starとは？」等\n- **sales_analytics**: 見込み管理・KPIの数値分析が必要な場合に使用。「Aランクの見込み合計は？」「未対応アラートが多い企業は？」「業種別の見込み金額は？」等\n\n## 回答スタイル\n- 日本語で回答する\n- 提案根拠を必ず明示する（「○○というニュースがあったため」「○○の面談でこの課題が挙がったため」等）\n- 具体的なアクション（「今週中にアポを設定してください」「提案書に○○を記載してください」等）を必ず提示する\n- コンプライアンス上問題のある表現（「確実に」「絶対に」「元本保証」等）を見つけた場合は必ず指摘する\n- 複数のツールを組み合わせて包括的な回答を提供する\n\n## 重要な制約\n- 担当企業は20社（従業員2,000名以上の実在大企業）のみ対象\n- 将来の運用実績や保険金支払いを保証する表現は使用しない\n- 個人情報・機密情報の取り扱いには十分注意する",
+    "response": "回答は必ず日本語で行ってください。提案する場合は根拠を明示し、具体的な次のアクションを示してください。数値データを引用する場合は出典（面談日、ニュース日付等）を明記してください。"
+  },
+  "tools": [
+    {
+      "tool_spec": {
+        "type": "cortex_search",
+        "name": "customer_search",
+        "description": "担当先顧客企業との面談記録・文字起こしを全文検索します。特定の企業名や担当者名、課題・関心事項のキーワードで過去の面談内容を検索できます。例：「トヨタとの面談でDCについて何を話したか」「KDDI担当者が懸念していた課題は何か」「退職給付制度について言及のある面談を探して」"
+      }
+    },
+    {
+      "tool_spec": {
+        "type": "cortex_search",
+        "name": "news_search",
+        "description": "担当先企業に関するニュース・事業イベント情報を全文検索します。M&A、IPO、経営陣交代、大規模採用、健康経営認定、退職給付制度改定などのイベントを検索できます。例：「パナソニックのM&A関連ニュースは？」「DC移行を検討している企業のニュースは？」「最近のIPO関連ニュースは？」"
+      }
+    },
+    {
+      "tool_spec": {
+        "type": "cortex_search",
+        "name": "product_search",
+        "description": "日本生命の保険商品（14商品）および非保険サービス（5サービス）の詳細情報を検索します。商品の特徴、対象企業、提案タイミング、保障内容などを調べられます。例：「GLTDの詳細を教えて」「M&A後に提案すべき商品は？」「Wellness-Starとは何ですか？」「DC移行に最適な商品は？」"
+      }
+    },
+    {
+      "tool_spec": {
+        "type": "cortex_analyst_text_to_sql",
+        "name": "sales_analytics",
+        "description": "法人営業のKPI・見込み管理・アラート情報をSQLで分析します。自然言語で質問するとSQLを自動生成して回答します。例：「Aランクの見込み件数と合計金額は？」「未対応アラートが最も多い企業は？」「業種別の見込み保険料合計は？」「面談件数が最も多い企業は？」「平均AIスコアが高い商品カテゴリは？」"
+      }
+    }
+  ],
+  "tool_resources": {
+    "customer_search": {
+      "execution_environment": {
+        "query_timeout": 299,
+        "type": "warehouse",
+        "warehouse": "NIPPONLIFE_DEMO_WH"
+      },
+      "search_service": "NIPPONLIFE_DEMO_DB.SEARCH.CUSTOMER_INFO_SEARCH"
+    },
+    "news_search": {
+      "execution_environment": {
+        "query_timeout": 299,
+        "type": "warehouse",
+        "warehouse": "NIPPONLIFE_DEMO_WH"
+      },
+      "search_service": "NIPPONLIFE_DEMO_DB.SEARCH.NEWS_SEARCH"
+    },
+    "product_search": {
+      "execution_environment": {
+        "query_timeout": 299,
+        "type": "warehouse",
+        "warehouse": "NIPPONLIFE_DEMO_WH"
+      },
+      "search_service": "NIPPONLIFE_DEMO_DB.SEARCH.PRODUCT_SEARCH"
+    },
+    "sales_analytics": {
+      "execution_environment": {
+        "query_timeout": 299,
+        "type": "warehouse",
+        "warehouse": "NIPPONLIFE_DEMO_WH"
+      },
+      "semantic_view": "NIPPONLIFE_DEMO_DB.ANALYTICS.SV_SALES_ANALYTICS"
+    }
+  }
+}
