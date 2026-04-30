@@ -1,0 +1,11 @@
+-- ============================================================
+-- environment.yml: Streamlit on Snowflake パッケージ設定
+-- ============================================================
+channels:
+  - snowflake
+dependencies:
+  - streamlit
+  - pydeck
+  - plotly
+  - python-pptx
+  - python-docx
