@@ -1,0 +1,6 @@
+definition_version: "1"
+streamlit:
+  name: NIPPONLIFE_SALES_DEMO
+  main_file: main.py
+  query_warehouse: NIPPONLIFE_DEMO_WH
+  env_file: environment.yml
