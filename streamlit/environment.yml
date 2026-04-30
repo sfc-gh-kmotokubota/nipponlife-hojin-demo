@@ -1,6 +1,4 @@
--- ============================================================
--- environment.yml: Streamlit on Snowflake パッケージ設定
--- ============================================================
+name: nipponlife_demo
 channels:
   - snowflake
 dependencies:
