@@ -103,21 +103,41 @@ st.markdown("---")
 # ────────────────────────────────────────
 st.subheader("📉 担当先企業の株価シグナル × 保険提案機会")
 
+# 期間ごとの騰落率（デモ固定値）全20社分
+CHANGE_BY_PERIOD = {
+    "1M": {
+        "C001": +2.3, "C002": -4.1, "C003": +6.8, "C004": +1.5, "C005": -7.5,
+        "C006": None, "C007": +3.2, "C008": +5.1, "C009": -1.8, "C010": -2.8,
+        "C011": +4.5, "C012": +8.5, "C013": -0.9, "C014": +7.2, "C015": +1.1,
+        "C016": +5.8, "C017": +2.9, "C018": None, "C019": +0.6, "C020": +3.4,
+    },
+    "3M": {
+        "C001": +8.1, "C002": -9.3, "C003": +14.2, "C004": +5.8, "C005": -12.4,
+        "C006": None, "C007": +6.5, "C008": +9.8, "C009": -4.2, "C010": -6.1,
+        "C011": +11.3, "C012": +18.7, "C013": -3.1, "C014": +15.6, "C015": +2.8,
+        "C016": +12.4, "C017": +7.3, "C018": None, "C019": +1.9, "C020": +7.1,
+    },
+    "1Y": {
+        "C001": +21.5, "C002": -18.7, "C003": +32.4, "C004": +14.2, "C005": -24.1,
+        "C006": None, "C007": +9.3, "C008": +22.6, "C009": -8.5, "C010": -11.3,
+        "C011": +28.9, "C012": +41.2, "C013": +5.2, "C014": +38.7, "C015": +6.4,
+        "C016": +29.3, "C017": +19.8, "C018": None, "C019": +4.7, "C020": +15.2,
+    },
+}
+
 market_df = session.sql("""
-    SELECT COMPANY_NAME, INDUSTRY_LARGE, PROSPECT_RANK,
-           LATEST_STOCK_PRICE, STOCK_1M_CHANGE_PCT,
-           PENSION_RATE_SIGNAL, UNREAD_ALERTS, PENSION_TYPE, STOCK_TICKER
+    SELECT COMPANY_ID, COMPANY_NAME, INDUSTRY_LARGE, PROSPECT_RANK,
+           LATEST_STOCK_PRICE, PENSION_RATE_SIGNAL, UNREAD_ALERTS, PENSION_TYPE, STOCK_TICKER
     FROM NIPPONLIFE_DEMO_DB.ANALYTICS.V_MARKET_INSIGHT
-    WHERE COMPANY_ID != 'C006'  -- JERAは非上場のため除外
+    WHERE COMPANY_ID != 'C006'
     ORDER BY
         CASE PROSPECT_RANK WHEN 'A' THEN 1 WHEN 'B' THEN 2 ELSE 3 END,
-        ABS(COALESCE(STOCK_1M_CHANGE_PCT, 0)) DESC
+        COMPANY_ID
 """).to_pandas()
 
 period = st.radio("表示期間", ["1M", "3M", "1Y"], horizontal=True)
 period_label = {"1M": "1ヶ月", "3M": "3ヶ月", "1Y": "1年"}[period]
 
-# テーブル表示
 display_cols = st.columns([2, 1, 1, 1, 2, 2])
 headers = ["企業名", "ランク", "株価", f"{period_label}騰落率", "金利シグナル", "提案機会"]
 for h, col in zip(headers, display_cols):
@@ -126,7 +146,8 @@ for h, col in zip(headers, display_cols):
 st.markdown("---")
 
 for _, row in market_df.iterrows():
-    chg = row.get("STOCK_1M_CHANGE_PCT")
+    cid = row["COMPANY_ID"]
+    chg = CHANGE_BY_PERIOD[period].get(cid)
     if chg is not None:
         icon = "🟢" if chg > 5 else ("🔴" if chg < -5 else "✅")
         chg_str = f"{icon} {chg:+.1f}%"

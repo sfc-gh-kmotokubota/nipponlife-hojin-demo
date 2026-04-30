@@ -87,7 +87,7 @@ def calculate_score(product_row, company_row, alerts_df):
             if isinstance(triggers, list) and any(event_type in str(t) for t in triggers):
                 score_add = {"最高": 25, "高": 18, "中": 10}.get(relevance, 5)
                 event_score = min(25, event_score + score_add)
-                reasons.append(f"①{event_type}への対応商品")
+                reasons.append(f"{event_type}への対応商品")
     event_score = event_score or 10  # デフォルト
 
     # 軸2: 市場環境適合度（25点）
@@ -95,13 +95,13 @@ def calculate_score(product_row, company_row, alerts_df):
     market_score = 12
     if pid == "P013":  # DB年金: 金利上昇で移行好機
         market_score = min(25, int((rate - 0.5) * 22))
-        reasons.append(f"②10年金利{rate}%→DB積立改善傾向")
+        reasons.append(f"10年金利{rate}%→DB積立改善傾向")
     elif pid == "P014":  # DC: 金利上昇でDB→DC移行提案好機
         market_score = min(25, int((rate - 0.8) * 30))
-        reasons.append(f"②高金利環境でDC移行コストが低い")
+        reasons.append(f"高金利環境でDC移行コストが低い")
     elif pid in ("P001","P002"):  # 役員保険: 株価下落時に訴求
         market_score = 15
-        reasons.append("②株価変動局面で役員保護ニーズ高まる")
+        reasons.append("株価変動局面で役員保護ニーズ高まる")
 
     # 軸3: 企業属性適合度（25点）
     attr_score = 12
@@ -117,7 +117,7 @@ def calculate_score(product_row, company_row, alerts_df):
         }
         mapped_industry = industry_key_map.get(industry, "製造業")
         attr_score = int(fit_scores.get(mapped_industry, 75) * 25 / 100)
-        reasons.append(f"③{industry}業種への適合性スコア{attr_score*4}")
+        reasons.append(f"{industry}業種への適合性スコア{attr_score*4}")
     except:
         attr_score = 15
 
@@ -126,10 +126,12 @@ def calculate_score(product_row, company_row, alerts_df):
     interest_score = min(25, int(emp / 5000))
     if interest_score < 8:
         interest_score = 8
-    reasons.append(f"④従業員{emp:,}名規模での導入実績が高い")
+    reasons.append(f"従業員{emp:,}名規模での導入実績が高い")
 
     total = event_score + market_score + attr_score + interest_score
-    return total, reasons[:3], {"event": event_score, "market": market_score, "attr": attr_score, "interest": interest_score}
+    # reasons に ① ② ③ を動的に付与
+    numbered = [f"{chr(0x2460 + i)}{r}" for i, r in enumerate(reasons[:3])]
+    return total, numbered, {"event": event_score, "market": market_score, "attr": attr_score, "interest": interest_score}
 
 # スコア計算
 scored = []

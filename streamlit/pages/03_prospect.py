@@ -67,11 +67,14 @@ for ci, (label, rkey) in enumerate(zip(col_labels, rank_keys)):
             score_color = "#E60012" if (row["AI_SCORE"] or 0) >= 75 else "#F5A623"
             days = row["DAYS_SINCE_CONTACT"] or 0
             contact_warn = "⚠" if days > 60 else ""
+            rank = row["CURRENT_RANK"]
+            rank_color = {"S": "#FFD700", "A": "#E60012", "B": "#F5A623", "C": "#4A90D9"}.get(rank, "#888")
+            rank_badge = f'<span style="background:{rank_color};color:white;border-radius:4px;padding:1px 6px;font-size:11px;font-weight:bold">{rank}</span>'
 
             st.markdown(f"""
             <div style="background:white;border-radius:6px;padding:10px;
                         box-shadow:0 1px 4px rgba(0,0,0,0.12);margin:4px 0;font-size:13px">
-                <strong>{row['COMPANY_NAME'][:12]}</strong> {alert_icon}<br/>
+                <strong>{row['COMPANY_NAME'][:12]}</strong> {rank_badge} {alert_icon}<br/>
                 💰 {row['PROSPECT_AMOUNT']/1e8:.1f}億円<br/>
                 AI: <span style="color:{score_color};font-weight:bold">{row['AI_SCORE']:.0f}</span>
                 {contact_warn} {f'{days}日未接触' if days > 30 else ''}
@@ -81,19 +84,20 @@ for ci, (label, rkey) in enumerate(zip(col_labels, rank_keys)):
 st.markdown("---")
 
 # C→B昇格チェックリスト
-st.subheader("📋 ランクアップ候補 - C→B 昇格チェックリスト")
+st.subheader("📋 ランクアップ候補 - 昇格チェックリスト")
 
-c_rank = prospects_df[prospects_df["CURRENT_RANK"] == "C"].drop_duplicates("COMPANY_ID")
-c_rank_sorted = c_rank.sort_values("AI_SCORE", ascending=False)
+c_rank = prospects_df[prospects_df["CURRENT_RANK"].isin(["C", "B"])].drop_duplicates("COMPANY_ID")
+c_rank_sorted = c_rank.sort_values(["CURRENT_RANK", "AI_SCORE"], ascending=[True, False])
 
 if c_rank_sorted.empty:
-    st.info("C ランクの企業はありません")
+    st.info("昇格候補の企業はありません")
 else:
     selected_c = st.selectbox(
         "分析する企業を選択",
-        c_rank_sorted["COMPANY_NAME"].tolist()
+        c_rank_sorted.apply(lambda r: f"{r['COMPANY_NAME']} [{r['CURRENT_RANK']}→{'B' if r['CURRENT_RANK']=='C' else 'A'}]", axis=1).tolist()
     )
-    selected_row = c_rank_sorted[c_rank_sorted["COMPANY_NAME"] == selected_c].iloc[0]
+    selected_name = selected_c.split(" [")[0]
+    selected_row = c_rank_sorted[c_rank_sorted["COMPANY_NAME"] == selected_name].iloc[0]
 
     col_score, col_check = st.columns([1, 2])
 
@@ -111,13 +115,14 @@ else:
                     st.markdown(f"- ①{action.strip()[:80]}")
 
     with col_check:
-        st.markdown("**C→B 昇格チェックリスト**")
+        from_rank = selected_row["CURRENT_RANK"]
+        to_rank = "B" if from_rank == "C" else "A"
+        st.markdown(f"**{from_rank} → {to_rank} 昇格チェックリスト**")
 
-        # チェックリストマスタ取得
-        checklist = session.sql("""
+        checklist = session.sql(f"""
             SELECT CHECK_ITEM, CHECK_CATEGORY, IS_REQUIRED
             FROM NIPPONLIFE_DEMO_DB.RAW.T_PROSPECT_CHECKLIST_MASTER
-            WHERE FROM_RANK = 'C' AND TO_RANK = 'B'
+            WHERE FROM_RANK = '{from_rank}' AND TO_RANK = '{to_rank}'
             ORDER BY DISPLAY_ORDER
         """).to_pandas()
 

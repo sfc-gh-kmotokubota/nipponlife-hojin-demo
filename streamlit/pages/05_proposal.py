@@ -23,7 +23,21 @@ with col1:
         FROM NIPPONLIFE_DEMO_DB.RAW.T_CUSTOMER_COMPANIES ORDER BY COMPANY_NAME
     """).to_pandas()
     company_options = {r["COMPANY_NAME"]: r["COMPANY_ID"] for _, r in companies.iterrows()}
-    selected_name = st.selectbox("対象企業", list(company_options.keys()))
+    company_names = list(company_options.keys())
+
+    # alertページからの遷移時に会社名を自動選択
+    preselect_name = None
+    if "proposal_company_name" in st.session_state:
+        preselect_name = st.session_state.pop("proposal_company_name")
+    elif "proposal_company" in st.session_state:
+        cid = st.session_state.pop("proposal_company")
+        for n, c in company_options.items():
+            if c == cid:
+                preselect_name = n
+                break
+
+    default_idx = company_names.index(preselect_name) if preselect_name in company_names else 0
+    selected_name = st.selectbox("対象企業", company_names, index=default_idx)
     selected_cid = company_options[selected_name]
 
     proposal_date = st.date_input("提案日", value=date.today())
@@ -97,9 +111,10 @@ if st.button("▶ AI 提案書ドラフト生成（約30秒）", type="primary",
 
         # AI でコンテンツ生成
         try:
-            content = session.sql(f"""
+            content_raw = session.sql(f"""
                 SELECT AI_COMPLETE('mistral-large2', CONCAT(
                     '以下の情報を元に、日本生命保険の法人向け提案書の主要セクションを生成してください。
+                     条件: マークダウン記法（#、##、**、*）は一切使わないこと。セクション見出しは「1. XXX」形式のみ。箇条書きは「・」のみ使用。
                      企業名: {selected_name}
                      業種: {company_data["INDUSTRY_LARGE"]}
                      従業員数: {company_data["EMPLOYEE_COUNT"]:,}名
@@ -113,6 +128,11 @@ if st.button("▶ AI 提案書ドラフト生成（約30秒）", type="primary",
                      4. 期待される効果（3点）
                      5. 今後のスケジュール案（3ステップ）')) AS CONTENT
             """).collect()[0]["CONTENT"]
+            import re
+            content = re.sub(r'^#{1,6}\s*', '', content_raw, flags=re.MULTILINE)
+            content = re.sub(r'\*\*(.+?)\*\*', r'\1', content)
+            content = re.sub(r'\*(.+?)\*', r'\1', content)
+            content = content.replace('\\n', '\n').replace('\\t', ' ')
         except:
             content = f"""1. ご提案の背景
 {selected_name}様の従業員{company_data['EMPLOYEE_COUNT']:,}名を守る保障制度の充実を目的に、この度ご提案させていただきます。足元の金利環境（10年金利1.45%）は制度見直しの最適タイミングを迎えております。
