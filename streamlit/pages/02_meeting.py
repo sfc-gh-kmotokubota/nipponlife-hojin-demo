@@ -154,6 +154,7 @@ if st.session_state.get("meeting_trigger") and st.session_state.get("meeting_com
             t = re.sub(r'^#{1,6}\s*', '', t, flags=re.MULTILINE)
             t = re.sub(r'\*\*(.+?)\*\*', r'\1', t)
             t = re.sub(r'\*(.+?)\*', r'\1', t)
+            t = t.strip('"').strip("'").strip()
             return t
 
         # 要約
@@ -244,7 +245,9 @@ if "meeting_summary" in st.session_state and st.session_state.get("meeting_compa
                 ) AS RESULT
             """).collect()[0]["RESULT"]
             result_dict = json.loads(comp_result) if isinstance(comp_result, str) else comp_result
-            label = result_dict.get("label", "問題なし")
+            label = (result_dict.get("label")
+                     or (result_dict.get("labels") or ["問題なし"])[0]
+                     or "問題なし")
         except:
             # "確実に" が含まれているかでデモ判定
             label = "注意表現あり（確認推奨）" if "確実に" in transcript_for_check else "問題なし"
