@@ -145,7 +145,25 @@ else:
         st.progress(progress_pct)
 
         if done_count >= total_required:
-            st.success("✅ 必須項目をクリア！Bランクに昇格可能です")
+            st.success(f"✅ 必須項目をクリア！{to_rank}ランクに昇格可能です")
+            st.markdown("---")
+            st.markdown(f"**🏆 {from_rank} → {to_rank} ランク昇格の実行**")
+            confirm = st.checkbox(f"「{selected_name}」を {from_rank} から {to_rank} に昇格させることを確認しました", key="confirm_rankup")
+            if st.button(f"🏆 {to_rank}ランクに昇格する", type="primary", disabled=not confirm, key="btn_rankup"):
+                try:
+                    session.sql(f"""
+                        UPDATE NIPPONLIFE_DEMO_DB.RAW.T_PROSPECTS
+                        SET CURRENT_RANK = '{to_rank}',
+                            PREVIOUS_RANK = '{from_rank}',
+                            UPDATED_AT = CURRENT_TIMESTAMP()
+                        WHERE COMPANY_ID = '{selected_row['COMPANY_ID']}'
+                          AND CURRENT_RANK = '{from_rank}'
+                    """).collect()
+                    st.success(f"🎉 {selected_name} を {from_rank} → {to_rank} ランクに昇格しました！")
+                    st.balloons()
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"昇格処理エラー: {e}")
         else:
             remaining = int(total_required) - done_count
             st.warning(f"⚠ 残り{remaining}項目の必須確認が必要です")

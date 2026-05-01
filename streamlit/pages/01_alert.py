@@ -66,24 +66,45 @@ with col_map:
             return {"最高": [230, 0, 18, 220], "高": [245, 166, 35, 200], "中": [100, 149, 237, 180]}.get(rel, [150, 150, 150, 150])
 
         map_df["color"] = map_df["INSURANCE_RELEVANCE"].apply(get_color)
-        map_df["radius"] = map_df["URGENCY_DAYS"].apply(lambda x: max(15000, 50000 - (x or 30) * 800))
+        map_df["radius"] = map_df["URGENCY_DAYS"].apply(lambda x: max(2000, 8000 - (x or 30) * 120))
 
-        layer = pdk.Layer(
+        # 東京都内など近接企業の座標ジッター（±0.002°≒200m）
+        import hashlib
+        def jitter(val, name, axis):
+            seed = int(hashlib.md5(f"{name}{axis}".encode()).hexdigest(), 16) % 1000
+            return val + (seed - 500) * 0.000004
+
+        map_df["lon_j"] = map_df.apply(lambda r: jitter(r["LONGITUDE"], r["COMPANY_NAME"], "x"), axis=1)
+        map_df["lat_j"] = map_df.apply(lambda r: jitter(r["LATITUDE"], r["COMPANY_NAME"], "y"), axis=1)
+
+        scatter_layer = pdk.Layer(
             "ScatterplotLayer",
             data=map_df,
-            get_position=["LONGITUDE", "LATITUDE"],
+            get_position=["lon_j", "lat_j"],
             get_color="color",
             get_radius="radius",
+            opacity=0.6,
             pickable=True,
             auto_highlight=True,
+        )
+        text_layer = pdk.Layer(
+            "TextLayer",
+            data=map_df,
+            get_position=["lon_j", "lat_j"],
+            get_text="COMPANY_NAME",
+            get_size=11,
+            get_color=[40, 40, 40, 200],
+            get_anchor="middle",
+            get_alignment_baseline="top",
+            pickable=False,
         )
         tooltip = {
             "html": "<b>{COMPANY_NAME}</b><br/>🚨 {EVENT_TYPE}<br/>{EVENT_SUMMARY}<br/>⏰ {URGENCY_DAYS}日以内",
             "style": {"backgroundColor": "#1A1A2E", "color": "white", "fontSize": "13px", "maxWidth": "300px"}
         }
         st.pydeck_chart(pdk.Deck(
-            layers=[layer],
-            initial_view_state=pdk.ViewState(latitude=35.8, longitude=137.5, zoom=5.2, pitch=0),
+            layers=[scatter_layer, text_layer],
+            initial_view_state=pdk.ViewState(latitude=35.8, longitude=137.5, zoom=5.5, pitch=0),
             tooltip=tooltip,
             map_style="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
         ))
