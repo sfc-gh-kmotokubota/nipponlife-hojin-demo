@@ -94,7 +94,9 @@ with tab_log:
     col_btn_dummy, col_spacer = st.columns([1, 3])
     with col_btn_dummy:
         if st.button("📋 ダミーデータで試す", key="btn_dummy"):
-            st.session_state["log_text"] = DUMMY_LOGS.get(selected_cid, DUMMY_LOGS["DEFAULT"])
+            dummy = DUMMY_LOGS.get(selected_cid, DUMMY_LOGS["DEFAULT"])
+            st.session_state["log_text"] = dummy
+            st.session_state["log_textarea"] = dummy  # widgetのコンテンツも直接更新
             st.rerun()
 
     log_text = st.text_area(
@@ -144,18 +146,29 @@ if st.session_state.get("meeting_trigger") and st.session_state.get("meeting_com
 
     transcript_for_ai = st.session_state.get("meeting_transcript", "")
     with st.spinner("AI が面談内容を分析中..."):
+        t_sql = transcript_for_ai[:2000].replace("'", "''").replace("\\", "")
+
+        def clean_ai(text):
+            import re
+            t = text.replace('\\n', '\n').replace('\\t', ' ')
+            t = re.sub(r'^#{1,6}\s*', '', t, flags=re.MULTILINE)
+            t = re.sub(r'\*\*(.+?)\*\*', r'\1', t)
+            t = re.sub(r'\*(.+?)\*', r'\1', t)
+            return t
+
         # 要約
         try:
-            summary_result = session.sql(f"""
+            raw_summary = session.sql(f"""
                 SELECT AI_COMPLETE('mistral-large2', CONCAT(
-                    '以下の保険営業の面談内容を要約してください。マークダウン記法は使わないこと。
-                     以下の形式で日本語で出力してください:
+                    '以下の保険営業の面談内容を要約してください。マークダウン記法は一切使わないこと。
+                     以下の形式で日本語で出力してください（各セクションは実際に改行を入れること）:
                      【面談概要】（2-3文）
-                     【先方の主な関心事項】（箇条書き 各行頭に「・」）
+                     【先方の主な関心事項】（箇条書き3点、各行頭に「・」）
                      【事業イベント関連の発言】（あれば。なければ「なし」）
-                     【合意事項・ペンディング】（各1-2点）
-                     面談内容：', {repr(transcript_for_ai[:2000])})) AS SUMMARY
+                     【合意事項・ペンディング】（各 1-2 点）
+                     面談内容：{t_sql}')) AS SUMMARY
             """).collect()[0]["SUMMARY"]
+            summary_result = clean_ai(raw_summary)
         except:
             summary_result = f"""【面談概要】
 {selected_company_name}との面談を実施。保険制度の見直しについて詳細なヒアリングを行った。
@@ -166,7 +179,7 @@ if st.session_state.get("meeting_trigger") and st.session_state.get("meeting_com
 ・退職給付制度の見直し（DC移行検討）
 
 【事業イベント関連の発言】
-・IT人材の採用競争激化への対応が急務とのこと
+なし
 
 【合意事項・ペンディング】
 ・合意: 来月中に具体的な試算と提案書を提示
@@ -174,12 +187,14 @@ if st.session_state.get("meeting_trigger") and st.session_state.get("meeting_com
 
         # ネクストアクション
         try:
-            next_actions_raw = session.sql(f"""
+            raw_actions = session.sql(f"""
                 SELECT AI_COMPLETE('mistral-large2', CONCAT(
                     '以下の保険営業の面談内容から、営業担当者が次回までに取るべきアクションを3〜5件提案してください。
-                     マークダウン記法は使わないこと。各アクションを「【優先度: 高/中/低】期限: XX | 内容」の形式で1行ずつ出力してください。
-                     面談内容：', {repr(transcript_for_ai[:2000])})) AS ACTIONS
+                     マークダウン記法は一切使わないこと。必ず以下の形式で出力（各行1アクション）:
+                     「【優先度: 高/中/低】期限: XX | 内容」
+                     面談内容：{t_sql}')) AS ACTIONS
             """).collect()[0]["ACTIONS"]
+            next_actions_raw = clean_ai(raw_actions)
         except:
             next_actions_raw = """【優先度: 高】期限: 今週中 | GLTD・DC試算シミュレーション資料を作成する
 【優先度: 高】期限: 来週中 | 試算と提案書を担当者にメール送付する
@@ -217,9 +232,10 @@ if "meeting_summary" in st.session_state and st.session_state.get("meeting_compa
     with col_right:
         st.subheader("🛡 コンプライアンスチェック")
         try:
+            tc_sql = transcript_for_check[:1500].replace("'", "''").replace("\\", "")
             comp_result = session.sql(f"""
                 SELECT AI_CLASSIFY(
-                    {repr(transcript_for_check[:1500])},
+                    '{tc_sql}',
                     ARRAY_CONSTRUCT('問題なし', '注意表現あり（確認推奨）', '違反リスクあり（要修正）'),
                     OBJECT_CONSTRUCT(
                         'task_description',
