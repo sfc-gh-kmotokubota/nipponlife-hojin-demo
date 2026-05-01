@@ -101,7 +101,6 @@ with tab_log:
 
     log_text = st.text_area(
         "会話ログ（発言者名: テキスト の形式）",
-        value=st.session_state.get("log_text", ""),
         height=220,
         placeholder="例）\n山田（日本生命）: 本日はご訪問ありがとうございます。\n担当者（先方）: こちらこそよろしくお願いします。",
         key="log_textarea"
