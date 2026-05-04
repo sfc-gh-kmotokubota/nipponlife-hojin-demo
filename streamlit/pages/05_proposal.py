@@ -109,7 +109,18 @@ if st.button("▶ AI 提案書ドラフト生成（約30秒）", type="primary",
     with st.spinner("AI が提案書を生成中..."):
         products_text = "、".join(selected_products[:3])
 
-        # AI でコンテンツ生成
+        def clean_proposal(text: str) -> str:
+            import re
+            t = text
+            t = t.replace('\\n', '\n').replace('\\t', ' ')
+            t = re.sub(r'^#{1,6}\s*', '', t, flags=re.MULTILINE)
+            t = re.sub(r'\*\*(.+?)\*\*', r'\1', t)
+            t = re.sub(r'\*(.+?)\*', r'\1', t)
+            t = re.sub(r'^```[^\n]*\n?', '', t, flags=re.MULTILINE)
+            t = re.sub(r'```', '', t)
+            t = t.strip('"').strip("'").strip()
+            return t
+
         try:
             content_raw = session.sql(f"""
                 SELECT AI_COMPLETE('mistral-large2', CONCAT(
@@ -128,12 +139,7 @@ if st.button("▶ AI 提案書ドラフト生成（約30秒）", type="primary",
                      4. 期待される効果（3点）
                      5. 今後のスケジュール案（3ステップ）')) AS CONTENT
             """).collect()[0]["CONTENT"]
-            import re
-            content = re.sub(r'^#{1,6}\s*', '', content_raw, flags=re.MULTILINE)
-            content = re.sub(r'\*\*(.+?)\*\*', r'\1', content)
-            content = re.sub(r'\*(.+?)\*', r'\1', content)
-            content = content.replace('\\n', '\n').replace('\\t', ' ')
-            content = content.strip('"').strip("'").strip()
+            content = clean_proposal(content_raw)
         except:
             content = f"""1. ご提案の背景
 {selected_name}様の従業員{company_data['EMPLOYEE_COUNT']:,}名を守る保障制度の充実を目的に、この度ご提案させていただきます。足元の金利環境（10年金利1.45%）は制度見直しの最適タイミングを迎えております。
