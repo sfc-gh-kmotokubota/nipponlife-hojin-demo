@@ -218,8 +218,7 @@ if "proposal_content" in st.session_state:
                 "📊 PowerPoint ⬇ ダウンロード",
                 data=pptx_buffer.getvalue(),
                 file_name=f"nissay_proposal_{selected_name}_{proposal_date}.pptx",
-                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                type="primary"
+                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
             )
         except ImportError:
             st.warning("python-pptx が必要です。`pip install python-pptx` を実行してください")
