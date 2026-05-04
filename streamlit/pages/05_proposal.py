@@ -164,7 +164,6 @@ if "proposal_content" in st.session_state:
     dl_col1, dl_col2 = st.columns(2)
 
     with dl_col1:
-        # PPTX生成
         try:
             from pptx import Presentation
             from pptx.util import Inches, Pt, Emu
@@ -174,53 +173,54 @@ if "proposal_content" in st.session_state:
             prs.slide_width = Emu(9144000)
             prs.slide_height = Emu(5143500)
 
-            # スライド1: 表紙
-            slide_layout = prs.slide_layouts[6]
-            slide = prs.slides.add_slide(slide_layout)
+            slide = prs.slides.add_slide(prs.slide_layouts[6])
             txBox = slide.shapes.add_textbox(Inches(0.5), Inches(1.5), Inches(8.5), Inches(2))
             tf = txBox.text_frame
             p = tf.paragraphs[0]
             p.text = f"{selected_name} 御中"
-            p.runs[0].font.size = Pt(20)
+            run = p.runs[0]
+            run.font.size = Pt(20)
 
             p2 = tf.add_paragraph()
             p2.text = f"退職給付制度最適化のご提案 - {proposal_date}"
-            p2.runs[0].font.size = Pt(16)
+            run2 = p2.runs[0]
+            run2.font.size = Pt(16)
 
             p3 = tf.add_paragraph()
             p3.text = "日本生命保険相互会社 法人部"
-            p3.runs[0].font.size = Pt(14)
+            run3 = p3.runs[0]
+            run3.font.size = Pt(14)
 
-            # スライド2: 提案内容
             slide2 = prs.slides.add_slide(prs.slide_layouts[6])
             txBox2 = slide2.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(8.5), Inches(4.5))
             tf2 = txBox2.text_frame
             tf2.word_wrap = True
-            p2_1 = tf2.paragraphs[0]
-            p2_1.text = "ご提案内容"
-            p2_1.runs[0].font.size = Pt(18)
-            p2_1.runs[0].font.bold = True
-            p2_1.runs[0].font.color.rgb = RGBColor(0xE6, 0x00, 0x12)
+            p_head = tf2.paragraphs[0]
+            p_head.text = "ご提案内容"
+            run_h = p_head.runs[0]
+            run_h.font.size = Pt(18)
+            run_h.font.bold = True
+            run_h.font.color.rgb = RGBColor(0xE6, 0x00, 0x12)
 
-            content_lines = st.session_state["proposal_content"].split("\n")
-            for line in content_lines[:15]:
+            for line in st.session_state["proposal_content"].split("\n")[:15]:
                 if line.strip():
                     p_new = tf2.add_paragraph()
                     p_new.text = line
-                    p_new.runs[0].font.size = Pt(11) if line.strip() else Pt(10)
+                    r = p_new.runs[0]
+                    r.font.size = Pt(11)
 
             pptx_buffer = io.BytesIO()
             prs.save(pptx_buffer)
-            pptx_buffer.seek(0)
+            pptx_data = pptx_buffer.getvalue()
 
             st.download_button(
                 "📊 PowerPoint ⬇ ダウンロード",
-                data=pptx_buffer.getvalue(),
+                data=pptx_data,
                 file_name=f"nissay_proposal_{selected_name}_{proposal_date}.pptx",
                 mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
             )
         except ImportError:
-            st.warning("python-pptx が必要です。`pip install python-pptx` を実行してください")
+            st.warning("python-pptx が必要です")
         except Exception as e:
             st.error(f"PPTX生成エラー: {e}")
 
