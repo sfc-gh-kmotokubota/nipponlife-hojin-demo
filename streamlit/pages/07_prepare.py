@@ -63,12 +63,28 @@ tab_brief, tab_qa = st.tabs([
     "💬 想定Q&A生成（F-08）"
 ])
 
+# ────────────────────────────────────────
+# タブ（アラートデータはページロード時に取得して両タブで共有）
+# ────────────────────────────────────────
+alerts_data = session.sql(f"""
+    SELECT EVENT_TYPE, EVENT_SUMMARY, INSURANCE_RELEVANCE, URGENCY_DAYS
+    FROM NIPPONLIFE_DEMO_DB.RAW.T_EVENT_ALERTS
+    WHERE COMPANY_ID = '{selected_cid}' AND STATUS = 'UNREAD'
+    ORDER BY CASE INSURANCE_RELEVANCE WHEN '最高' THEN 1 WHEN '高' THEN 2 ELSE 3 END
+    LIMIT 3
+""").to_pandas()
+
+tab_brief, tab_qa = st.tabs([
+    "📊 企業ブリーフィング（1クリック）",
+    "💬 想定Q&A生成（F-08）"
+])
+
 # ════════════════════════════════════════
 # タブ1: 企業ブリーフィング
 # ════════════════════════════════════════
 with tab_brief:
     st.subheader("📊 企業ブリーフィング")
-    st.caption("社内データ（面談履歴・ニュース・財務・アラート）を統合してブリーフィングを自動生成。Databricksは外部MCPサーバー経由 → **Snowflakeはデータが外に出ない**")
+    st.caption("社内データ（面談履歴・ニュース・財務・アラート）を統合してブリーフィングを自動生成。Snowflakeのプラットフォーム内でデータ処理が完結するため、機密情報を安全に扱えます")
 
     if st.button("📊 ブリーフィングを生成", type="primary", key="btn_briefing"):
         with st.spinner(f"{selected_company['COMPANY_NAME']} の情報を収集・統合中..."):
@@ -87,7 +103,6 @@ with tab_brief:
                 ORDER BY CASE INSURANCE_RELEVANCE WHEN '最高' THEN 1 WHEN '高' THEN 2 ELSE 3 END
                 LIMIT 3
             """).to_pandas()
-
             meetings_data = session.sql(f"""
                 SELECT mt.TRANSCRIPT_TEXT, m.MEETING_DATE, m.MEETING_TYPE
                 FROM NIPPONLIFE_DEMO_DB.RAW.T_MEETING_TRANSCRIPTS mt
@@ -211,7 +226,7 @@ STEP3: 次回面談日程の確定
 # ════════════════════════════════════════
 with tab_qa:
     st.subheader("💬 想定Q&A生成（F-08）")
-    st.caption("Databricksは「精度が現時点では怪しい」→ **Snowflakeは商品の保障内容・企業属性を組み合わせた根拠付きQ&A**を生成。保険業法に沿った表現でそのまま使える。")
+    st.caption("商品の保障内容・企業属性を組み合わせた根拠付きQ&Aを生成。保険業法に沿った表現でそのまま使えます。")
 
     products = session.sql("""
         SELECT PRODUCT_ID, PRODUCT_NAME, PRODUCT_CATEGORY, DESCRIPTION,
