@@ -22,20 +22,6 @@
         "type": "STAGE",
         "path": "@NIPPONLIFE_DEMO_DB.RAW.NIPPONLIFE_SKILLS/compliance_guidelines"
       }
-    },
-    {
-      "name": "pptx_generation",
-      "source": {
-        "type": "STAGE",
-        "path": "@NIPPONLIFE_DEMO_DB.RAW.NIPPONLIFE_SKILLS/pptx_generation"
-      }
-    },
-    {
-      "name": "word_generation",
-      "source": {
-        "type": "STAGE",
-        "path": "@NIPPONLIFE_DEMO_DB.RAW.NIPPONLIFE_SKILLS/word_generation"
-      }
     }
   ],
   "instructions": {
@@ -69,6 +55,56 @@
         "type": "cortex_analyst_text_to_sql",
         "name": "sales_analytics",
         "description": "法人営業のKPI・見込み管理・アラート情報をSQLで分析します。自然言語で質問するとSQLを自動生成して回答します。例：「Aランクの見込み件数と合計金額は？」「未対応アラートが最も多い企業は？」「業種別の見込み保険料合計は？」「面談件数が最も多い企業は？」「平均AIスコアが高い商品カテゴリは？」"
+      }
+    },
+    {
+      "tool_spec": {
+        "type": "generic",
+        "name": "generate_proposal_pptx",
+        "description": "法人向け提案書をPowerPoint形式で生成し、ダウンロードURLを返します。company_name（企業名）、product_names（提案商品のカンマ区切りリスト）、proposal_content（提案書の本文テキスト。事前にsales_analyticsやnews_searchで取得した情報を含む）を入力として受け取ります。生成したファイルのダウンロードURLを返します。",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "company_name": {
+              "type": "string",
+              "description": "提案先企業名（例: KDDI(株)）"
+            },
+            "product_names": {
+              "type": "string",
+              "description": "提案する商品名のカンマ区切りリスト（例: 確定拠出年金（DC）, GLTD）"
+            },
+            "proposal_content": {
+              "type": "string",
+              "description": "提案書の本文。1.ご提案の背景、2.現状課題、3.提案内容、4.期待される効果、5.スケジュール案のセクションで構成する。"
+            }
+          },
+          "required": ["company_name", "product_names", "proposal_content"]
+        }
+      }
+    },
+    {
+      "tool_spec": {
+        "type": "generic",
+        "name": "generate_proposal_docx",
+        "description": "法人向け提案書・議事録・報告書をWord形式で生成し、ダウンロードURLを返します。company_name（企業名）、product_names（提案商品のカンマ区切りリスト）、proposal_content（提案書の本文テキスト）を入力として受け取ります。",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "company_name": {
+              "type": "string",
+              "description": "提案先企業名（例: パナソニック ホールディングス(株)）"
+            },
+            "product_names": {
+              "type": "string",
+              "description": "提案する商品名のカンマ区切りリスト"
+            },
+            "proposal_content": {
+              "type": "string",
+              "description": "提案書の本文テキスト"
+            }
+          },
+          "required": ["company_name", "product_names", "proposal_content"]
+        }
       }
     }
   ],
@@ -104,6 +140,24 @@
         "warehouse": "NIPPONLIFE_DEMO_WH"
       },
       "semantic_view": "NIPPONLIFE_DEMO_DB.ANALYTICS.SV_SALES_ANALYTICS"
+    },
+    "generate_proposal_pptx": {
+      "type": "procedure",
+      "identifier": "NIPPONLIFE_DEMO_DB.RAW.GENERATE_PROPOSAL_PPTX",
+      "execution_environment": {
+        "type": "warehouse",
+        "warehouse": "NIPPONLIFE_DEMO_WH",
+        "query_timeout": 300
+      }
+    },
+    "generate_proposal_docx": {
+      "type": "procedure",
+      "identifier": "NIPPONLIFE_DEMO_DB.RAW.GENERATE_PROPOSAL_DOCX",
+      "execution_environment": {
+        "type": "warehouse",
+        "warehouse": "NIPPONLIFE_DEMO_WH",
+        "query_timeout": 300
+      }
     }
   }
 }
