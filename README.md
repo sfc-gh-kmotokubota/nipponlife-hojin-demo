@@ -1,112 +1,207 @@
 # 日本生命 法人営業AIアシスタント
-## Snowflake Intelligence + Streamlit でDatabricksに勝つ
+## Snowflake Intelligence + Streamlit で実現する営業DX
 
 [![Snowflake](https://img.shields.io/badge/Snowflake-29B5E8?logo=snowflake&logoColor=white)](https://snowflake.com)
 [![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io)
 
-> **vs Databricks**: MCP不要のWebSearch・保険業法コンプライアンス検知・説明可能AI商品マッチングでDatabricksを圧倒
+日本生命保険相互会社 法人営業部向けのAIアシスタントデモ。  
+Snowflake Intelligence（Cortex Agent）と Streamlit on Snowflake を組み合わせ、**面談前 → 面談中 → 面談後** の営業活動を全面サポートします。
+
+---
+
+## 📱 アプリ構成（7画面）
+
+| # | ファイル | 画面 | 主な機能 |
+|---|---------|------|---------|
+| – | `main.py` | 🏠 ホーム | KPI ダッシュボード・各機能への導線 |
+| 1 | `01_alert.py` | 🚨 事業イベントアラート | M&A・IPO・経営陣交代等をAIが自動検知。pydeck地図で可視化 |
+| 2 | `02_meeting.py` | 🎙 面談録音・要約 | 音声/会話ログ対応・AI要約・コンプライアンス検知・SF登録 |
+| 3 | `03_prospect.py` | 📊 見込み管理 | カンバンボード・昇格チェックリスト・1クリック昇格 |
+| 4 | `04_matching.py` | 🔍 商品マッチング | 4軸説明可能AIスコアリング（根拠付き） |
+| 5 | `05_proposal.py` | 📄 提案書自動生成 | 既存テンプレへの情報差し込み・PPTX/Word対応 |
+| 6 | `06_market.py` | 📈 マーケット・インサイト | 金利・株価データで提案タイミングを分析 |
+| 7 | `07_prepare.py` | 🎯 面談前準備 | 企業ブリーフィング1クリック生成・想定Q&A自動作成 |
+
+---
+
+## 🤖 Snowflake Intelligence（Cortex Agent）
+
+**エージェント**: `NIPPONLIFE_DEMO_DB.RAW.NIPPONLIFE_SALES_AGENT`
+
+面談①前・②中・③後のすべてのフェーズをカバーする4ツール構成：
+
+| ツール | タイプ | 用途 |
+|-------|--------|------|
+| `customer_search` | Cortex Search | 顧客・面談記録の全文検索 |
+| `news_search` | Cortex Search | 企業ニュース・事業イベント検索 |
+| `product_search` | Cortex Search | 保険商品・非保険サービス検索 |
+| `sales_analytics` | Cortex Analyst | KPI・見込み・アラートのSQL分析 |
+
+デモシナリオ集: `si_agent/demo_scenarios.md`（7つのマルチターン会話シナリオ）
 
 ---
 
 ## 🚀 セットアップ手順
 
-### 1. 前提条件
+### 前提条件
 
 - Snowflake アカウント（ACCOUNTADMIN ロール）
-- Snowflake CLI (`snow`) インストール済み
+- Snowflake CLI (`snow`) v3.14+
 - Python 3.9+ + `snowflake-connector-python`
 
-### 2. Snowflake 環境構築
+### 1. Snowflake 環境構築
 
 ```bash
-# KMOT_DEMO1 接続でSQLを順に実行
 CONN=KMOT_DEMO1
 
+# DB / ウェアハウス / スキーマ / ロール
 snow sql -f sql/00_setup.sql -c $CONN
+
+# 全 16 テーブル DDL
 snow sql -f sql/01_ddl.sql -c $CONN
-snow sql -f sql/02_master_data.sql -c $CONN
+
+# マスタデータ（20社・14商品・5サービス・チェックリスト）
+# ※ snow sql の {} テンプレート変数問題を回避するため Python を使用
+SNOWFLAKE_CONNECTION_NAME=$CONN python3 -c "
+import os, snowflake.connector, pathlib
+conn = snowflake.connector.connect(connection_name=os.environ['SNOWFLAKE_CONNECTION_NAME'])
+cur = conn.cursor()
+for stmt in pathlib.Path('sql/02_master_data.sql').read_text().split(';'):
+    stmt = stmt.strip()
+    if stmt and not stmt.startswith('--'):
+        cur.execute(stmt)
+conn.close()
+print('Master data loaded.')
+"
 ```
 
-### 3. デモデータ生成
+### 2. デモデータ生成
 
 ```bash
-# Python スクリプトでリッチなデモデータを生成
-SNOWFLAKE_CONNECTION_NAME=KMOT_DEMO1 python3 sql/03_generate_data.py
+# ニュース（400件）・面談（160件）・財務・見込み・座標データ
+SNOWFLAKE_CONNECTION_NAME=$CONN python3 sql/03_generate_data.py
 ```
 
-### 4. ビュー・Cortex Search・Semantic View 作成
+### 3. ビュー・Cortex Search・Semantic View
 
 ```bash
-snow sql -f sql/08_views.sql -c $CONN
-snow sql -f sql/09_cortex_search.sql -c $CONN
-snow sql -f sql/10_semantic_view.sql -c $CONN
+# Analytics Views（V_PROSPECT_DASHBOARD / V_EVENT_ALERT_PRIORITY / V_MARKET_INSIGHT）
+SNOWFLAKE_CONNECTION_NAME=$CONN python3 -c "
+import os, snowflake.connector
+conn = snowflake.connector.connect(connection_name=os.environ['SNOWFLAKE_CONNECTION_NAME'])
+cur = conn.cursor()
+cur.execute('USE DATABASE NIPPONLIFE_DEMO_DB'); cur.execute('USE WAREHOUSE NIPPONLIFE_DEMO_WH')
+for f in ['sql/08_views.sql', 'sql/09_cortex_search.sql', 'sql/10_semantic_view.sql']:
+    import pathlib
+    for stmt in pathlib.Path(f).read_text().split(';'):
+        s = stmt.strip()
+        if s and not s.startswith('--') and not s.startswith('USE'):
+            try: cur.execute(s)
+            except Exception as e: print(f'  Warning: {e}')
+conn.close()
+"
 ```
 
-### 5. Streamlit デプロイ
+> **Note**: `09_cortex_search.sql` と `10_semantic_view.sql` は snow CLI でも直接実行できますが、`{}` を含む場合は Python 経由を推奨。
+
+### 4. Streamlit デプロイ
 
 ```bash
-# Snowflake on Streamlit として CREATE
-snow streamlit deploy \
-  --app-name NIPPONLIFE_SALES_DEMO \
+cd streamlit
+snow streamlit deploy --replace \
+  --connection $CONN \
+  --dbname NIPPONLIFE_DEMO_DB \
+  --schemaname RAW
+```
+
+**アプリ URL**:  
+`https://app.snowflake.com/SFSEAPAC/kmot_demo1/#/streamlit-apps/NIPPONLIFE_DEMO_DB.RAW.NIPPONLIFE_SALES_DEMO`
+
+### 5. Cortex Agent 作成
+
+```bash
+SKILL_DIR="/Applications/Cortex Code.app/Contents/Resources/app/resources/snowflake/skills/cortex-code-skills/cortex-agent"
+
+uv run --project "$SKILL_DIR" python "$SKILL_DIR/scripts/create_or_alter_agent.py" create \
+  --agent-name NIPPONLIFE_SALES_AGENT \
+  --config-file si_agent/agent_spec.json \
   --database NIPPONLIFE_DEMO_DB \
   --schema RAW \
-  --warehouse NIPPONLIFE_DEMO_WH \
-  --main-file streamlit/main.py \
-  -c $CONN
+  --role ACCOUNTADMIN \
+  --connection $CONN
 ```
-
----
-
-## 📱 アプリ構成（6画面）
-
-| # | 画面 | 機能 | vs Databricks |
-|---|------|------|---------------|
-| 1 | 🚨 アラート | 事業イベント自動検知・pydeck地図 | ✅ プッシュ型（Databricksはプル型） |
-| 2 | 🎙 面談録音 | AI要約・コンプライアンス検知・SF登録 | ✅ 保険業法特化分類は競合になし |
-| 3 | 📊 見込み管理 | カンバンボード・C→B昇格チェックリスト | ✅ 昇格チェックリストは競合になし |
-| 4 | 🔍 商品マッチング | 4軸説明可能AIスコアリング | ✅✅ 根拠付き（競合は「精度が怪しい」） |
-| 5 | 📄 提案書自動生成 | 既存テンプレへの差し込み・PPTX/Word | ✅ カスタムテンプレート対応 |
-| 6 | 📈 マーケット | 財務企画部共有の金利・株価 | ✅✅ Snowflake Data Sharing（ゼロコピー） |
-
----
-
-## 🤖 Snowflake Intelligence（SI）エージェント設定
-
-`si_agent/system_prompt.md` を参照してエージェントを設定してください。
-
-**Tools（10ツール）**:
-1. `customer_search` - 顧客・面談情報（Cortex Search）
-2. `news_search` - 企業ニュース・イベント（Cortex Search）
-3. `product_search` - 保険商品・サービス（Cortex Search）
-4. `sales_analytics` - KPI分析（Cortex Analyst）
-5. `certified_info` - 優良認定情報（SQL）
-6. `event_alert_search` - 事業イベントアラート（SQL）
-7. `service_recommendation` - 非保険サービス提案（SQL）
-8. `web_search` - リアルタイムWeb検索（**MCP不要・ネイティブ**）
-9. `market_context_analysis` - 市場データ×保険提案（SQL）
-10. `compliance_check` - 保険業法コンプライアンス検知（AI_CLASSIFY）
 
 ---
 
 ## 📊 データ構成
 
-- **顧客企業**: 20社（従業員2,000名以上の実在大企業）
-- **保険商品**: 14商品（日本生命公式サイト準拠）
-- **非保険サービス**: 5サービス（Wellness-Star・Biz-Create・私募債等）
-- **ニュース**: 400件（事業イベント分類・保険適合度付き）
-- **面談録**: 160件 + 800発言の文字起こし
-- **財務データ**: 100件（20社×5年）
+| テーブル | 件数 | 内容 |
+|---------|------|------|
+| `T_CUSTOMER_COMPANIES` | 20社 | 従業員2,000名以上の実在大企業 |
+| `T_INSURANCE_PRODUCTS` | 14商品 | 日本生命公式サイト準拠 |
+| `T_NISSAY_SERVICES` | 5サービス | Wellness-Star・Biz-Create・私募債等 |
+| `T_COMPANY_NEWS` | 401件 | 事業イベント分類・保険適合度付き |
+| `T_EVENT_ALERTS` | 34件 | 未読アラート（M&A・IPO・経営陣交代等） |
+| `T_MEETINGS` | 223件 | 面談記録＋文字起こし |
+| `T_FINANCIAL_DATA` | 200件 | 20社×5年分の財務データ |
+| `T_PROSPECTS` | 54件 | 見込み管理（AIスコア・ランク付き） |
+| `T_COMPANY_LOCATIONS` | 20件 | 本社座標（pydeck地図用） |
 
 ---
 
-## 🏆 Databricks との差別化（5ポイント）
+## 🗂 リポジトリ構造
 
-1. **MCP不要のWeb Search** - Cortex Agent にネイティブ内蔵。顧客情報が外部に流れない
-2. **コンプライアンス検知** - 保険業法特化のAI_CLASSIFY。面談中（SI）+事後（Streamlit）の2モード
-3. **説明可能AI商品マッチング** - 4軸スコアリングで根拠を明示（競合は「精度が怪しい」）
-4. **Snowflake Data Sharing** - 財務企画部の金利・株価データをゼロコピーで法人営業部に共有
-5. **全処理がSnowflakeネットワーク内で完結** - 金融機関として情報漏洩リスクがない
+```
+nipponlife-hojin-demo/
+├── README.md
+├── sql/
+│   ├── 00_setup.sql          # DB / WH / スキーマ / ロール
+│   ├── 01_ddl.sql            # 全 16 テーブル定義
+│   ├── 02_master_data.sql    # 20社・14商品・5サービス・チェックリスト
+│   ├── 03_generate_data.py   # ニュース・面談・財務・見込みデータ生成
+│   ├── 08_views.sql          # 分析ビュー × 3
+│   ├── 09_cortex_search.sql  # Cortex Search × 3
+│   └── 10_semantic_view.sql  # SV_SALES_ANALYTICS
+├── streamlit/
+│   ├── snowflake.yml
+│   ├── environment.yml
+│   ├── main.py
+│   └── pages/
+│       ├── 01_alert.py       # 事業イベントアラート
+│       ├── 02_meeting.py     # 面談録音・要約・会話ログ分析
+│       ├── 03_prospect.py    # 見込み管理
+│       ├── 04_matching.py    # 商品マッチング
+│       ├── 05_proposal.py    # 提案書自動生成
+│       ├── 06_market.py      # マーケット・インサイト
+│       └── 07_prepare.py     # 面談前準備
+├── si_agent/
+│   ├── agent_spec.json       # Cortex Agent 設定
+│   ├── demo_scenarios.md     # デモシナリオ集（7シナリオ）
+│   └── README.md             # エージェント設定ガイド
+└── docs/
+    └── nipponlife_demo_design.md  # 設計書 v3.0
+```
 
 ---
 
-*作成: Snowflake SE チーム | 更新: 2026年4月30日*
+## ⚙️ Snowflake オブジェクト一覧
+
+| オブジェクト | 場所 | 説明 |
+|-------------|------|------|
+| `NIPPONLIFE_DEMO_WH` | – | デモ用ウェアハウス（Medium） |
+| `NIPPONLIFE_DEMO_DB.RAW` | スキーマ | テーブル・Streamlit |
+| `NIPPONLIFE_DEMO_DB.ANALYTICS` | スキーマ | ビュー・Semantic View |
+| `NIPPONLIFE_DEMO_DB.SEARCH` | スキーマ | Cortex Search |
+| `V_PROSPECT_DASHBOARD` | ANALYTICS | 見込みダッシュボードビュー |
+| `V_EVENT_ALERT_PRIORITY` | ANALYTICS | アラート優先度ビュー |
+| `V_MARKET_INSIGHT` | ANALYTICS | 市場シグナルビュー |
+| `CUSTOMER_INFO_SEARCH` | SEARCH | 面談記録の全文検索 |
+| `NEWS_SEARCH` | SEARCH | 企業ニュースの全文検索 |
+| `PRODUCT_SEARCH` | SEARCH | 保険商品・サービスの全文検索 |
+| `SV_SALES_ANALYTICS` | ANALYTICS | Cortex Analyst 用 Semantic View |
+| `NIPPONLIFE_SALES_AGENT` | RAW | Cortex Agent（4ツール） |
+| `NIPPONLIFE_SALES_DEMO` | RAW | Streamlit on Snowflake |
+
+---
+
+*作成: Snowflake SE チーム | 最終更新: 2026年5月4日*
