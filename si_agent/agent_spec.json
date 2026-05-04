@@ -22,6 +22,20 @@
         "type": "STAGE",
         "path": "@NIPPONLIFE_DEMO_DB.RAW.NIPPONLIFE_SKILLS/compliance_guidelines"
       }
+    },
+    {
+      "name": "pptx_generation",
+      "source": {
+        "type": "STAGE",
+        "path": "@NIPPONLIFE_DEMO_DB.RAW.NIPPONLIFE_SKILLS/pptx_generation"
+      }
+    },
+    {
+      "name": "word_generation",
+      "source": {
+        "type": "STAGE",
+        "path": "@NIPPONLIFE_DEMO_DB.RAW.NIPPONLIFE_SKILLS/word_generation"
+      }
     }
   ],
   "instructions": {
