@@ -175,9 +175,8 @@ if "proposal_content" in st.session_state:
             prs.slide_height = Emu(5143500)
 
             # スライド1: 表紙
-            slide_layout = prs.slide_layouts[6]  # blank
+            slide_layout = prs.slide_layouts[6]
             slide = prs.slides.add_slide(slide_layout)
-            slide.shapes.add_textbox(Inches(0.5), Inches(2), Inches(8.5), Inches(1)).text_frame.paragraphs[0].runs  # 仮
             txBox = slide.shapes.add_textbox(Inches(0.5), Inches(1.5), Inches(8.5), Inches(2))
             tf = txBox.text_frame
             p = tf.paragraphs[0]
