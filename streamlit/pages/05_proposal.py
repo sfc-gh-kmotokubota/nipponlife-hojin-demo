@@ -133,6 +133,7 @@ if st.button("▶ AI 提案書ドラフト生成（約30秒）", type="primary",
             content = re.sub(r'\*\*(.+?)\*\*', r'\1', content)
             content = re.sub(r'\*(.+?)\*', r'\1', content)
             content = content.replace('\\n', '\n').replace('\\t', ' ')
+            content = content.strip('"').strip("'").strip()
         except:
             content = f"""1. ご提案の背景
 {selected_name}様の従業員{company_data['EMPLOYEE_COUNT']:,}名を守る保障制度の充実を目的に、この度ご提案させていただきます。足元の金利環境（10年金利1.45%）は制度見直しの最適タイミングを迎えております。
