@@ -139,7 +139,7 @@ with col_list:
             if st.button("📄 提案書作成", key=f"prop_{row['ALERT_ID']}"):
                 st.session_state["proposal_company"] = row["COMPANY_ID"]
                 st.session_state["proposal_company_name"] = row["COMPANY_NAME"]
-                st.switch_page("pages/05_proposal.py")
+                st.switch_page("pages/06_proposal.py")
 
 st.markdown("---")
 st.markdown("**※ データ提供**: Snowflake Streams + Tasks により夜間自動スキャン | 全処理はSnowflakeネットワーク内で完結")

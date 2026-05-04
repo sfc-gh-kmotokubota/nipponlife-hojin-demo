@@ -335,4 +335,4 @@ with col_btn2:
     if st.button("📄 提案書を自動生成 →"):
         st.session_state["proposal_company"] = selected_cid
         st.session_state["proposal_company_name"] = selected_company["COMPANY_NAME"]
-        st.switch_page("pages/05_proposal.py")
+        st.switch_page("pages/06_proposal.py")
