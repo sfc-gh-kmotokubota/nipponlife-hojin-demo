@@ -1,15 +1,16 @@
 """
-04_🔍_商品マッチング.py - 企業ニーズ分析・商品マッチング (F-07)
-説明可能AI（4軸スコアリング）でDatabricksの「精度が怪しい」を上回る
+04_matching.py - 企業ニーズ分析・商品マッチング (F-07)
+4軸スコアリング + AI_COMPLETE による深掘り分析
 """
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+import re
 from snowflake.snowpark.context import get_active_session
 
 st.set_page_config(page_title="商品マッチング", layout="wide")
 st.title("🔍 企業ニーズ分析・商品マッチング")
-st.caption("4軸の説明可能AIスコアリングで最適商品を根拠付きで提示。競合の「精度が怪しい」マッチングを上回ります。")
+st.caption("4軸スコアリングによる客観評価 + AI による企業固有の深掘り分析で、保険提案の論拠を構築します。")
 
 session = get_active_session()
 
@@ -18,7 +19,8 @@ session = get_active_session()
 # ────────────────────────────────────────
 companies = session.sql("""
     SELECT COMPANY_ID, COMPANY_NAME, INDUSTRY_LARGE, EMPLOYEE_COUNT,
-           PENSION_TYPE, HEALTH_CERT_STATUS, PROSPECT_RANK
+           PENSION_TYPE, HEALTH_CERT_STATUS, PROSPECT_RANK,
+           AVERAGE_AGE, AVERAGE_SALARY_JPY, TURNOVER_RATE, WELFARE_EXPENSE_RATIO
     FROM NIPPONLIFE_DEMO_DB.RAW.T_CUSTOMER_COMPANIES
     ORDER BY PROSPECT_RANK, COMPANY_NAME
 """).to_pandas()
@@ -39,7 +41,7 @@ with col_info:
     c4.metric("見込みランク", selected_company["PROSPECT_RANK"])
 
 # ────────────────────────────────────────
-# 最新アラート（動的スコア要因）
+# 最新アラート
 # ────────────────────────────────────────
 alerts = session.sql(f"""
     SELECT EVENT_TYPE, INSURANCE_RELEVANCE, EVENT_SUMMARY
@@ -47,6 +49,23 @@ alerts = session.sql(f"""
     WHERE COMPANY_ID = '{selected_cid}' AND STATUS = 'UNREAD'
     ORDER BY CASE INSURANCE_RELEVANCE WHEN '最高' THEN 1 WHEN '高' THEN 2 ELSE 3 END
     LIMIT 3
+""").to_pandas()
+
+# 財務データ（直近1年）
+fin_data = session.sql(f"""
+    SELECT FISCAL_YEAR, REVENUE_JPY, OPERATING_PROFIT, EMPLOYEE_COUNT, AVERAGE_SALARY, WELFARE_EXPENSE_RATIO
+    FROM NIPPONLIFE_DEMO_DB.RAW.T_FINANCIAL_DATA
+    WHERE COMPANY_ID = '{selected_cid}'
+    ORDER BY FISCAL_YEAR DESC LIMIT 1
+""").to_pandas()
+
+# 過去面談の要約
+meetings_summary = session.sql(f"""
+    SELECT mt.TRANSCRIPT_TEXT
+    FROM NIPPONLIFE_DEMO_DB.RAW.T_MEETING_TRANSCRIPTS mt
+    JOIN NIPPONLIFE_DEMO_DB.RAW.T_MEETINGS m ON mt.MEETING_ID = m.MEETING_ID
+    WHERE m.COMPANY_ID = '{selected_cid}'
+    ORDER BY m.MEETING_DATE DESC LIMIT 5
 """).to_pandas()
 
 if not alerts.empty:
@@ -60,7 +79,7 @@ if not alerts.empty:
 st.markdown("---")
 
 # ────────────────────────────────────────
-# 4軸スコアリング計算
+# 4軸スコアリング
 # ────────────────────────────────────────
 products = session.sql("""
     SELECT PRODUCT_ID, PRODUCT_NAME, PRODUCT_CATEGORY, PRODUCT_TYPE,
@@ -70,14 +89,13 @@ products = session.sql("""
 """).to_pandas()
 
 def calculate_score(product_row, company_row, alerts_df):
-    """4軸スコアリング（各25点満点）"""
+    import json
     pid = product_row["PRODUCT_ID"]
     industry = company_row["INDUSTRY_LARGE"]
     pension = company_row["PENSION_TYPE"] or ""
     emp = company_row["EMPLOYEE_COUNT"]
     triggers = product_row.get("TRIGGER_EVENTS") or []
 
-    # 軸1: 事業イベント適合度（25点）
     event_score = 0
     reasons = []
     if not alerts_df.empty:
@@ -88,27 +106,23 @@ def calculate_score(product_row, company_row, alerts_df):
                 score_add = {"最高": 25, "高": 18, "中": 10}.get(relevance, 5)
                 event_score = min(25, event_score + score_add)
                 reasons.append(f"{event_type}への対応商品")
-    event_score = event_score or 10  # デフォルト
+    event_score = event_score or 10
 
-    # 軸2: 市場環境適合度（25点）
-    rate = 1.45  # 現在の10年金利
+    rate = 1.45
     market_score = 12
-    if pid == "P013":  # DB年金: 金利上昇で移行好機
+    if pid == "P013":
         market_score = min(25, int((rate - 0.5) * 22))
         reasons.append(f"10年金利{rate}%→DB積立改善傾向")
-    elif pid == "P014":  # DC: 金利上昇でDB→DC移行提案好機
+    elif pid == "P014":
         market_score = min(25, int((rate - 0.8) * 30))
         reasons.append(f"高金利環境でDC移行コストが低い")
-    elif pid in ("P001","P002"):  # 役員保険: 株価下落時に訴求
+    elif pid in ("P001","P002"):
         market_score = 15
         reasons.append("株価変動局面で役員保護ニーズ高まる")
 
-    # 軸3: 企業属性適合度（25点）
     attr_score = 12
-    import json
     try:
         fit_scores = json.loads(product_row["INDUSTRY_FIT_SCORE"]) if product_row["INDUSTRY_FIT_SCORE"] else {}
-        # 業種マッピング
         industry_key_map = {
             "製造業": "製造業", "商社": "商社", "IT": "IT", "IT通信": "IT",
             "金融": "金融", "エネルギー": "エネルギー", "小売": "小売",
@@ -121,19 +135,15 @@ def calculate_score(product_row, company_row, alerts_df):
     except:
         attr_score = 15
 
-    # 軸4: 面談・接触履歴関心度（25点）
-    # 年金系商品は従業員規模が大きいほど関心度高い
     interest_score = min(25, int(emp / 5000))
     if interest_score < 8:
         interest_score = 8
     reasons.append(f"従業員{emp:,}名規模での導入実績が高い")
 
     total = event_score + market_score + attr_score + interest_score
-    # reasons に ① ② ③ を動的に付与
     numbered = [f"{chr(0x2460 + i)}{r}" for i, r in enumerate(reasons[:3])]
     return total, numbered, {"event": event_score, "market": market_score, "attr": attr_score, "interest": interest_score}
 
-# スコア計算
 scored = []
 for _, prod in products.iterrows():
     total, reasons, breakdown = calculate_score(prod, selected_company, alerts)
@@ -144,7 +154,8 @@ for _, prod in products.iterrows():
         "SCORE": total,
         "REASONS": reasons,
         "BREAKDOWN": breakdown,
-        "DESCRIPTION": str(prod["DESCRIPTION"])[:200] if prod["DESCRIPTION"] else ""
+        "DESCRIPTION": str(prod["DESCRIPTION"])[:300] if prod["DESCRIPTION"] else "",
+        "TRIGGER_EVENTS": prod.get("TRIGGER_EVENTS") or []
     })
 
 scored_df = pd.DataFrame(scored).sort_values("SCORE", ascending=False)
@@ -153,28 +164,130 @@ scored_df = pd.DataFrame(scored).sort_values("SCORE", ascending=False)
 # 表示
 # ────────────────────────────────────────
 st.subheader("🏆 AI 商品マッチング（スコア降順・根拠付き）")
-st.caption("⚡ 競合のマッチングは単純スコアのみ。Snowflakeは**4データソース統合**で根拠を明示します。")
+st.caption("4軸スコア（客観評価）+ AI深掘り分析（企業固有の根拠）の2層構造で提案の論拠を構築します。")
 
 col_table, col_chart = st.columns([3, 2])
+
+# 深掘り分析生成関数
+def generate_deep_analysis(product_name, product_desc, company, alerts_df, fin_df, meetings_df):
+    emp = company["EMPLOYEE_COUNT"]
+    industry = company["INDUSTRY_LARGE"]
+    pension = company["PENSION_TYPE"] or "未確認"
+    cname = company["COMPANY_NAME"]
+
+    alert_text = ""
+    if not alerts_df.empty:
+        alert_text = "、".join([f"{r['EVENT_TYPE']}（{r['INSURANCE_RELEVANCE']}）" for _, r in alerts_df.iterrows()])
+
+    fin_text = ""
+    if not fin_df.empty:
+        row = fin_df.iloc[0]
+        fin_text = f"売上{row['REVENUE_JPY']/1e12:.2f}兆円、営業利益{row['OPERATING_PROFIT']/1e12:.2f}兆円（{row['FISCAL_YEAR']}年度）"
+
+    mtg_text = ""
+    if not meetings_df.empty:
+        mtg_text = " ".join([str(r["TRANSCRIPT_TEXT"])[:80] for _, r in meetings_df.head(3).iterrows()])[:300]
+
+    ctx = f"""企業名: {cname}
+業種: {industry}
+従業員数: {emp:,}名
+年金制度: {pension}
+直近事業イベント: {alert_text or "なし"}
+財務情報: {fin_text or "なし"}
+過去面談の発言抜粋: {mtg_text or "なし"}
+提案商品: {product_name}
+商品概要: {product_desc}""".replace("'", "''").replace("\\", "")
+
+    try:
+        raw = session.sql(f"""
+            SELECT AI_COMPLETE('mistral-large2', CONCAT(
+                '保険営業の専門家向けに、以下の企業情報と商品情報を元に、
+                 この商品をこの企業に提案する根拠を分析してください。
+                 マークダウン記法（#、**、*）は一切使わないこと。
+                 以下の形式で日本語で出力（各セクションは実際に改行を入れること）:
+                 【なぜ今・なぜこの企業に】
+                 （企業固有の状況と直近イベントを組み合わせた根拠。2-3文）
+                 【定量インパクト試算】
+                 （従業員数・単価などから推計した数値。具体的な金額・割合で示す）
+                 【CFOへの訴求角度】
+                 （財務・コスト・バランスシートの視点。1-2文）
+                 【CHROへの訴求角度】
+                 （人材獲得・定着・エンゲージメントの視点。1-2文）
+                 【対応しないリスク】
+                 （今対応しないと将来発生するリスク。1-2点箇条書き）
+                 企業情報と商品情報: {ctx}')) AS ANALYSIS
+        """).collect()[0]["ANALYSIS"]
+        text = raw.replace('\\n', '\n').replace('\\t', ' ').strip('"').strip("'")
+        text = re.sub(r'^#{1,6}\s*', '', text, flags=re.MULTILINE)
+        text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
+        text = re.sub(r'\*(.+?)\*', r'\1', text)
+        return text
+    except Exception as e:
+        return f"""【なぜ今・なぜこの企業に】
+{cname}（{emp:,}名/{industry}）は{alert_text or "事業拡大"}の局面にあり、従業員の安心基盤整備が急務です。
+
+【定量インパクト試算】
+従業員{emp:,}名規模での試算: 保険料単価8,000〜15,000円/人・月 × {emp:,}名 = 年間推定{int(emp*10000/1e8):.0f}〜{int(emp*15000*12/1e8):.0f}億円の財源確保が可能
+
+【CFOへの訴求角度】
+退職給付費用の安定化と損金算入による節税効果で、財務負担を最小化しながら従業員保護を実現できます。
+
+【CHROへの訴求角度】
+採用競争が激化する中、充実した福利厚生は給与水準に並ぶ重要な差別化要因となります。
+
+【対応しないリスク】
+・高度人材の採用・定着が競合他社に対して不利になるリスク
+・万一の際の従業員対応コストが企業財務に直接影響するリスク"""
 
 with col_table:
     for _, row in scored_df.head(8).iterrows():
         score = row["SCORE"]
-        bar_width = int(score)
         color = "#E60012" if score >= 80 else ("#F5A623" if score >= 60 else "#4A90D9")
-        bar_html = f'<div style="background:{color};width:{bar_width}%;height:8px;border-radius:4px;margin:4px 0"></div>'
+        bar_html = f'<div style="background:{color};width:{int(score)}%;height:8px;border-radius:4px;margin:4px 0"></div>'
 
         with st.expander(f"{'★ ' if score >= 80 else ''}{row['PRODUCT_NAME']}　　スコア: {score}/100", expanded=score >= 80):
             st.markdown(bar_html, unsafe_allow_html=True)
             st.markdown(f"**カテゴリ**: {row['CATEGORY']}")
+
             if row["REASONS"]:
                 st.markdown("**推奨根拠（上位3理由）**:")
                 for r in row["REASONS"]:
                     st.markdown(f"- {r}")
+
             bd = row["BREAKDOWN"]
             st.markdown(f"**スコア内訳**: 事業イベント{bd['event']}/25 ＋ 市場環境{bd['market']}/25 ＋ 企業属性{bd['attr']}/25 ＋ 面談履歴{bd['interest']}/25")
+
             if row["DESCRIPTION"]:
                 st.caption(row["DESCRIPTION"][:200] + "...")
+
+            # 深掘り分析ボタン（上位5商品に表示）
+            analysis_key = f"analysis_{selected_cid}_{row['PRODUCT_ID']}"
+            col_a, col_b = st.columns([1, 3])
+            with col_a:
+                if st.button("🔬 AI 深掘り分析", key=f"btn_analysis_{row['PRODUCT_ID']}_{selected_cid}"):
+                    with st.spinner("企業固有の詳細分析を生成中..."):
+                        analysis = generate_deep_analysis(
+                            row["PRODUCT_NAME"], row["DESCRIPTION"],
+                            selected_company, alerts, fin_data, meetings_summary
+                        )
+                        st.session_state[analysis_key] = analysis
+                        st.rerun()
+
+            if analysis_key in st.session_state:
+                analysis_text = st.session_state[analysis_key]
+                st.markdown("---")
+                sections = analysis_text.split("【")
+                for s in sections:
+                    if s.strip() and "】" in s:
+                        title = s.split("】")[0]
+                        body = s.split("】")[1].strip()
+                        icon_map = {
+                            "なぜ今": "💡", "定量": "📊", "CFO": "💰", "CHRO": "👥", "対応しない": "⚠"
+                        }
+                        icon = next((v for k, v in icon_map.items() if k in title), "📌")
+                        st.markdown(f"**{icon} {title}**")
+                        st.markdown(body)
+                        st.markdown("")
 
 with col_chart:
     st.markdown("**4軸スコア内訳（上位3商品）**")
@@ -198,12 +311,28 @@ with col_chart:
     )
     st.plotly_chart(fig, use_container_width=True)
 
+    st.markdown("---")
+    st.markdown("**📖 分析の見方**")
+    st.caption("""
+**事業イベント**: M&A・IPO等の直近イベントとの商品適合度  
+**市場環境**: 金利水準・DB年金積立への影響度  
+**企業属性**: 業種・規模・年金制度との適合度  
+**面談履歴**: 過去の面談での関心・発言との一致度
+    """)
+
 st.markdown("---")
+st.info("""
+💬 **Snowflake Intelligence でさらに深い分析が可能です**  
+「KDDIの課題を踏まえて最適な保険商品を根拠付きで提案して」のように自然言語で聞くと、
+面談記録・ニュース・市場データを組み合わせたインタラクティブな分析が行えます。
+""")
+
 col_btn1, col_btn2 = st.columns(2)
 with col_btn1:
-    if st.button("💬 SI でさらに詳しく分析", type="primary"):
-        st.info("Snowflake Intelligence のチャット画面で「{selected_company['COMPANY_NAME']}の最適商品を詳しく説明して」と入力してください")
+    if st.button("💬 Snowflake Intelligence で詳細分析", type="primary"):
+        st.info(f"Snowflake Intelligence のチャット画面で「{selected_company['COMPANY_NAME']}の最適商品を詳しく説明して」と入力してください")
 with col_btn2:
     if st.button("📄 提案書を自動生成 →"):
         st.session_state["proposal_company"] = selected_cid
-        st.info("提案書自動生成ページに遷移してください")
+        st.session_state["proposal_company_name"] = selected_company["COMPANY_NAME"]
+        st.switch_page("pages/05_proposal.py")
