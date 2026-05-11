@@ -332,7 +332,7 @@ with col_btn1:
     if st.button("💬 Snowflake Intelligence で詳細分析", type="primary"):
         st.info(f"Snowflake Intelligence のチャット画面で「{selected_company['COMPANY_NAME']}の最適商品を詳しく説明して」と入力してください")
 with col_btn2:
-    if st.button("📄 提案書を自動生成 →"):
+    if st.button("📄 DPを自動生成 →"):
         st.session_state["proposal_company"] = selected_cid
         st.session_state["proposal_company_name"] = selected_company["COMPANY_NAME"]
         st.switch_page("pages/06_proposal.py")

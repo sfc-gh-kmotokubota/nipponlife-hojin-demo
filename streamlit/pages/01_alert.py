@@ -136,7 +136,7 @@ with col_list:
                 session.sql(f"UPDATE NIPPONLIFE_DEMO_DB.RAW.T_EVENT_ALERTS SET STATUS='DONE' WHERE ALERT_ID='{row['ALERT_ID']}'").collect()
                 st.rerun()
         with cols_btn[1]:
-            if st.button("📄 提案書作成", key=f"prop_{row['ALERT_ID']}"):
+            if st.button("📄 DP作成", key=f"prop_{row['ALERT_ID']}"):
                 st.session_state["proposal_company"] = row["COMPANY_ID"]
                 st.session_state["proposal_company_name"] = row["COMPANY_NAME"]
                 st.switch_page("pages/06_proposal.py")
