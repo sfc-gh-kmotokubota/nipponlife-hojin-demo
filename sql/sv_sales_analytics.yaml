@@ -1,0 +1,144 @@
+name: SV_SALES_ANALYTICS
+description: 日本生命 法人営業 KPI・見込み・アラート分析用セマンティックビュー
+tables:
+  - name: ALERTS
+    base_table:
+      database: NIPPONLIFE_DEMO_DB
+      schema: RAW
+      table: T_EVENT_ALERTS
+    dimensions:
+      - name: ALERT_PRIORITY
+        synonyms:
+          - アラート優先度
+          - 重要度
+        description: 最高・高・中・低
+        expr: alerts.INSURANCE_RELEVANCE
+        data_type: VARCHAR(10)
+      - name: EVENT_TYPE
+        synonyms:
+          - イベント種別
+          - 事業イベント種別
+        description: M&A・経営陣交代・大規模採用・健康経営等
+        expr: alerts.EVENT_TYPE
+        data_type: VARCHAR(100)
+    primary_key:
+      columns:
+        - ALERT_ID
+  - name: COMPANIES
+    base_table:
+      database: NIPPONLIFE_DEMO_DB
+      schema: RAW
+      table: T_CUSTOMER_COMPANIES
+    dimensions:
+      - name: COMPANY_NAME
+        synonyms:
+          - 企業名
+          - 会社名
+        description: 顧客企業名
+        expr: companies.COMPANY_NAME
+        data_type: VARCHAR(100)
+      - name: INDUSTRY
+        synonyms:
+          - 業種
+          - 産業
+        description: 業種（大分類）
+        expr: companies.INDUSTRY_LARGE
+        data_type: VARCHAR(50)
+      - name: PREFECTURE
+        description: 本社所在都道府県
+        expr: companies.PREFECTURE
+        data_type: VARCHAR(20)
+    primary_key:
+      columns:
+        - COMPANY_ID
+  - name: MEETINGS
+    base_table:
+      database: NIPPONLIFE_DEMO_DB
+      schema: RAW
+      table: T_MEETINGS
+    metrics:
+      - name: MEETING_COUNT
+        synonyms:
+          - 接触回数
+          - 面談件数
+        description: 面談・接触の総件数
+        expr: COUNT(meetings.MEETING_ID)
+        access_modifier: public_access
+    primary_key:
+      columns:
+        - MEETING_ID
+  - name: PRODUCTS
+    base_table:
+      database: NIPPONLIFE_DEMO_DB
+      schema: RAW
+      table: T_INSURANCE_PRODUCTS
+    dimensions:
+      - name: PRODUCT_CATEGORY
+        description: 商品カテゴリ
+        expr: products.PRODUCT_CATEGORY
+        data_type: VARCHAR(50)
+    primary_key:
+      columns:
+        - PRODUCT_ID
+  - name: PROSPECTS
+    base_table:
+      database: NIPPONLIFE_DEMO_DB
+      schema: RAW
+      table: T_PROSPECTS
+    dimensions:
+      - name: PROSPECT_RANK
+        synonyms:
+          - ランク
+          - 見込みランク
+        description: '見込みランク: S / A / B / C'
+        expr: prospects.CURRENT_RANK
+        data_type: VARCHAR(1)
+    metrics:
+      - name: AVG_AI_SCORE
+        synonyms:
+          - 平均AIスコア
+        description: 見込みAIスコアの平均値（0-100）
+        expr: AVG(prospects.AI_SCORE)
+        access_modifier: public_access
+      - name: PROSPECT_AMOUNT_TOTAL
+        synonyms:
+          - 見込み保険料合計
+          - 見込み金額合計
+        description: 見込み保険料の合計金額（年額）
+        expr: SUM(prospects.PROSPECT_AMOUNT)
+        access_modifier: public_access
+      - name: PROSPECT_COUNT
+        synonyms:
+          - 案件数
+          - 見込み件数
+        description: 見込み管理の件数
+        expr: COUNT(prospects.PROSPECT_ID)
+        access_modifier: public_access
+    primary_key:
+      columns:
+        - PROSPECT_ID
+relationships:
+  - name: ALERTS_TO_COMPANIES
+    left_table: ALERTS
+    right_table: COMPANIES
+    relationship_columns:
+      - left_column: COMPANY_ID
+        right_column: COMPANY_ID
+  - name: MEETINGS_TO_COMPANIES
+    left_table: MEETINGS
+    right_table: COMPANIES
+    relationship_columns:
+      - left_column: COMPANY_ID
+        right_column: COMPANY_ID
+  - name: PROSPECTS_TO_COMPANIES
+    left_table: PROSPECTS
+    right_table: COMPANIES
+    relationship_columns:
+      - left_column: COMPANY_ID
+        right_column: COMPANY_ID
+  - name: PROSPECTS_TO_PRODUCTS
+    left_table: PROSPECTS
+    right_table: PRODUCTS
+    relationship_columns:
+      - left_column: PRODUCT_ID
+        right_column: PRODUCT_ID
