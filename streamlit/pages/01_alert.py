@@ -116,7 +116,7 @@ with col_list:
     filt_rel = st.selectbox("優先度フィルター", ["すべて", "最高", "高", "中"])
     filtered = alerts_df if filt_rel == "すべて" else alerts_df[alerts_df["INSURANCE_RELEVANCE"] == filt_rel]
 
-    for _, row in filtered.iterrows():
+    for idx_, row in filtered.iterrows():
         rel = row["INSURANCE_RELEVANCE"]
         icon = {"最高": "🔴", "高": "🟡", "中": "🟢"}.get(rel, "⚪")
         css_class = {"最高": "alert-critical", "高": "alert-high", "中": "alert-medium"}.get(rel, "")
@@ -132,11 +132,11 @@ with col_list:
 
         cols_btn = st.columns([1, 1, 2])
         with cols_btn[0]:
-            if st.button("✅ 対応済み", key=f"done_{row['ALERT_ID']}"):
+            if st.button("✅ 対応済み", key=f"done_{row['ALERT_ID']}_{idx_}"):
                 session.sql(f"UPDATE NIPPONLIFE_DEMO_DB.RAW.T_EVENT_ALERTS SET STATUS='DONE' WHERE ALERT_ID='{row['ALERT_ID']}'").collect()
                 st.rerun()
         with cols_btn[1]:
-            if st.button("📄 DP作成", key=f"prop_{row['ALERT_ID']}"):
+            if st.button("📄 DP作成", key=f"prop_{row['ALERT_ID']}_{idx_}"):
                 st.session_state["proposal_company"] = row["COMPANY_ID"]
                 st.session_state["proposal_company_name"] = row["COMPANY_NAME"]
                 st.switch_page("pages/06_proposal.py")

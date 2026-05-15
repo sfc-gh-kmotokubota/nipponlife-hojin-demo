@@ -33,16 +33,6 @@ prospects_df = session.sql("""
     ORDER BY p.AI_SCORE DESC
 """).to_pandas()
 
-# KPI
-cols = st.columns(4)
-for i, rank in enumerate(["S", "A", "B", "C"]):
-    subset = prospects_df[prospects_df["CURRENT_RANK"] == rank]
-    amt = subset["PROSPECT_AMOUNT"].sum() / 1e8
-    cols[i].metric(
-        f"{'🏆' if rank=='S' else '🥇' if rank=='A' else '🥈' if rank=='B' else '🥉'} {rank}ランク",
-        f"{len(subset)}件 / {amt:.1f}億円"
-    )
-
 st.markdown("---")
 
 # カンバンボード
@@ -55,31 +45,39 @@ kanban_cols = st.columns(5)
 for ci, (label, rkey) in enumerate(zip(col_labels, rank_keys)):
     with kanban_cols[ci]:
         subset = prospects_df[prospects_df["CURRENT_RANK"] == rkey] if rkey != "DONE" else pd.DataFrame()
-        cnt = len(subset)
-        amt = subset["PROSPECT_AMOUNT"].sum() / 1e8 if not subset.empty else 0
+        if not subset.empty:
+            grouped = subset.groupby("COMPANY_NAME").agg(
+                PROSPECT_AMOUNT=("PROSPECT_AMOUNT", "sum"),
+                AI_SCORE=("AI_SCORE", "max"),
+                DAYS_SINCE_CONTACT=("DAYS_SINCE_CONTACT", "min"),
+                LATEST_ALERT_REL=("LATEST_ALERT_REL", "first"),
+                CURRENT_RANK=("CURRENT_RANK", "first"),
+                PRODUCT_COUNT=("PROSPECT_ID", "count"),
+            ).reset_index().sort_values("AI_SCORE", ascending=False)
+        else:
+            grouped = pd.DataFrame()
+        cnt = len(grouped)
+        amt = grouped["PROSPECT_AMOUNT"].sum() / 1e8 if not grouped.empty else 0
 
-        st.markdown(f"**{label}**")
-        st.markdown(f"<small>{cnt}件 / {amt:.1f}億円</small>", unsafe_allow_html=True)
-        st.markdown("---")
+        st.markdown(f"**{label}** &nbsp; <small>{cnt}件 / {amt:.1f}億円</small>", unsafe_allow_html=True)
 
-        for _, row in subset.iterrows():
-            alert_icon = {"最高": "🔴", "高": "🟡", "中": "🟢"}.get(row.get("LATEST_ALERT_REL"), "")
-            score_color = "#E60012" if (row["AI_SCORE"] or 0) >= 75 else "#F5A623"
-            days = row["DAYS_SINCE_CONTACT"] or 0
-            contact_warn = "⚠" if days > 60 else ""
-            rank = row["CURRENT_RANK"]
-            rank_color = {"S": "#FFD700", "A": "#E60012", "B": "#F5A623", "C": "#4A90D9"}.get(rank, "#888")
-            rank_badge = f'<span style="background:{rank_color};color:white;border-radius:4px;padding:1px 6px;font-size:11px;font-weight:bold">{rank}</span>'
-
-            st.markdown(f"""
-            <div style="background:white;border-radius:6px;padding:10px;
-                        box-shadow:0 1px 4px rgba(0,0,0,0.12);margin:4px 0;font-size:13px">
-                <strong>{row['COMPANY_NAME'][:12]}</strong> {rank_badge} {alert_icon}<br/>
-                💰 {row['PROSPECT_AMOUNT']/1e8:.1f}億円<br/>
-                AI: <span style="color:{score_color};font-weight:bold">{row['AI_SCORE']:.0f}</span>
-                {contact_warn} {f'{days}日未接触' if days > 30 else ''}
-            </div>
-            """, unsafe_allow_html=True)
+        with st.container(height=400):
+            for _, row in grouped.iterrows():
+                alert_icon = {"最高": "🔴", "高": "🟡", "中": "🟢"}.get(row.get("LATEST_ALERT_REL"), "")
+                score_color = "#E60012" if (row["AI_SCORE"] or 0) >= 75 else "#F5A623"
+                days = row["DAYS_SINCE_CONTACT"] or 0
+                contact_warn = "⚠" if days > 60 else ""
+                rank = row["CURRENT_RANK"]
+                rank_color = {"S": "#FFD700", "A": "#E60012", "B": "#F5A623", "C": "#4A90D9"}.get(rank, "#888")
+                rank_badge = f'<span style="background:{rank_color};color:white;border-radius:4px;padding:1px 6px;font-size:11px;font-weight:bold">{rank}</span>'
+                cname = row['COMPANY_NAME'][:12]
+                amt_str = f"{row['PROSPECT_AMOUNT']/1e8:.1f}"
+                sc = f"{row['AI_SCORE']:.0f}"
+                day_text = f"{days}日未接触" if days > 30 else ""
+                prod_cnt = int(row.get("PRODUCT_COUNT", 1))
+                prod_label = f" ({prod_cnt}商品)" if prod_cnt > 1 else ""
+                card = f'<div style="background:white;border-radius:6px;padding:10px;box-shadow:0 1px 4px rgba(0,0,0,0.12);margin:4px 0;font-size:13px"><strong>{cname}</strong> {rank_badge} {alert_icon}{prod_label}<br/>💰 {amt_str}億円<br/>AI: <span style="color:{score_color};font-weight:bold">{sc}</span> {contact_warn} {day_text}</div>'
+                st.markdown(card, unsafe_allow_html=True)
 
 st.markdown("---")
 
