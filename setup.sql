@@ -651,7 +651,7 @@ for(var ci=0;ci<companies.length;ci++){var c=companies[ci];for(var yr=2021;yr<=2
 snowflake.execute({sqlText:"INSERT INTO T_FINANCIAL_DATA(FINANCIAL_ID,COMPANY_ID,FISCAL_YEAR,REVENUE_JPY,OPERATING_PROFIT,NET_PROFIT,TOTAL_ASSETS,EMPLOYEE_COUNT,CREATED_AT)VALUES('"+fid+"','"+c.id+"',"+yr+","+rev+","+op+","+net+","+ta+","+ec+",CURRENT_TIMESTAMP())"});}}
 for(var ci=0;ci<companies.length;ci++){var c=companies[ci];var np=c.rank==='A'?4:c.rank==='B'?3:2;for(var pi2=0;pi2<np;pi2++){var pidS='PR'+String(pid).padStart(4,'0');pid++;var pIdx=(ci*3+pi2)%pIds.length;var am=Math.floor(Math.random()*2e9)+1e7;var sc=Math.floor(Math.random()*50)+(c.rank==='A'?50:c.rank==='B'?30:20);if(sc>100)sc=100;var ds2=Math.floor(Math.random()*120);
 snowflake.execute({sqlText:"INSERT INTO T_PROSPECTS(PROSPECT_ID,COMPANY_ID,PRODUCT_ID,CURRENT_RANK,PROSPECT_AMOUNT,AI_SCORE,AI_SCORE_REASON,DAYS_SINCE_CONTACT,LAST_EVENT_TRIGGER,RANKUP_ACTIONS,CREATED_AT,UPDATED_AT)VALUES('"+pidS+"','"+c.id+"','"+pIds[pIdx]+"','"+c.rank+"',"+am+","+sc+",'AIスコア: 事業イベント・面談履歴・市場環境を総合評価',"+ds2+",'事業イベント検知','①詳細ヒアリング ②試算提示 ③提案書作成',CURRENT_TIMESTAMP(),CURRENT_TIMESTAMP())"});}}
-for(var ci=0;ci<companies.length;ci++){var c=companies[ci];var lid='LOC'+String(ci+1).padStart(3,'0');snowflake.execute({sqlText:"INSERT INTO T_COMPANY_LOCATIONS(LOCATION_ID,COMPANY_ID,LOCATION_TYPE,ADDRESS,LATITUDE,LONGITUDE,CREATED_AT)VALUES('"+lid+"','"+c.id+"','本社','"+q(c.name)+" 本社',"+c.lat+","+c.lon+",CURRENT_TIMESTAMP())"});}
+for(var ci=0;ci<companies.length;ci++){var c=companies[ci];var lid='LOC'+String(ci+1).padStart(3,'0');snowflake.execute({sqlText:"INSERT INTO T_COMPANY_LOCATIONS(LOCATION_ID,COMPANY_ID,LOCATION_TYPE,ADDRESS,LATITUDE,LONGITUDE,IS_HEADQUARTERS,CREATED_AT)VALUES('"+lid+"','"+c.id+"','本社','"+q(c.name)+" 本社',"+c.lat+","+c.lon+",TRUE,CURRENT_TIMESTAMP())"});}
 for(var ci=0;ci<companies.length;ci++){var c=companies[ci];var nc=c.rank==='A'?3:c.rank==='B'?2:1;for(var ki=0;ki<nc;ki++){var coidS='CON'+String(coid).padStart(4,'0');coid++;var pIdx2=(ci*2+ki)%pIds.length;var prem=Math.floor(Math.random()*5e8)+1e7;var sy=2020+Math.floor(Math.random()*4);
 snowflake.execute({sqlText:"INSERT INTO T_CONTRACTS(CONTRACT_ID,COMPANY_ID,PRODUCT_ID,CONTRACT_DATE,EXPIRY_DATE,ANNUAL_PREMIUM,STATUS,CREATED_AT)VALUES('"+coidS+"','"+c.id+"','"+pIds[pIdx2]+"','"+sy+"-04-01','"+(sy+3)+"-03-31',"+prem+",'ACTIVE',CURRENT_TIMESTAMP())"});}}
 return 'デモデータ生成完了: ニュース'+(nid-1)+'件, アラート'+(aid-1)+'件, 面談'+(mid-1)+'件, 文字起こし'+(trid-1)+'件, 財務100件, 見込み'+(pid-1)+'件, 座標20件, 契約'+(coid-1)+'件';
@@ -1104,6 +1104,134 @@ USE WAREHOUSE NIPPONLIFE_DEMO_WH;
 CREATE STAGE IF NOT EXISTS NIPPONLIFE_DEMO_DB.RAW.NIPPONLIFE_SKILLS
   DIRECTORY = (ENABLE = TRUE)
   COMMENT = 'Cortex Agent Skills';
+
+CREATE OR REPLACE PROCEDURE NIPPONLIFE_DEMO_DB.RAW.UPLOAD_SKILL_FILES()
+RETURNS VARCHAR LANGUAGE PYTHON RUNTIME_VERSION = '3.11'
+PACKAGES = ('snowflake-snowpark-python')
+HANDLER = 'main' EXECUTE AS CALLER
+AS $$
+def main(session):
+    import os
+    skills = {
+        "proposal_generation": """---
+name: proposal_generation
+description: |
+  日本生命 法人向け提案書の構成を生成するスキル。
+  企業名・商品・背景情報をもとに、PPTX/Word提案書の章立てと各セクションの内容案を作成します。
+---
+
+# 提案書生成スキル
+
+あなたは日本生命保険の法人営業担当者の提案書作成を支援するアシスタントです。
+
+## このスキルが呼び出される条件
+
+以下のような依頼があった場合にこのスキルを使用してください：
+- 「提案書を作って」
+- 「XXX社向けの提案書」
+- 「PPTX/Wordを作成して」
+- 「提案内容をまとめて」
+
+## 提案書の標準構成
+
+必ず以下の5セクション構成で提案書を作成してください：
+
+### 1. ご提案の背景
+- 企業の直近の事業イベント（M&A・IPO・経営陣交代・大規模採用等）を明示
+- 現在の市場環境（金利水準・業界動向）との関連
+- 「なぜ今この企業にこの提案をするのか」を2〜3文で明確に
+
+### 2. 御社の現状課題
+- 企業の業種・規模・年金制度から推定される課題
+- 過去の面談で確認された具体的な懸念事項
+- 定量的なリスク（従業員数・財務データ等）を含める
+
+### 3. 日本生命のご提案内容
+- 各商品について：保障内容・導入メリット・御社への適合理由を2〜3文
+- 非保険サービス（Wellness-Star・Biz-Create等）との組み合わせ提案も検討
+
+### 4. 期待される効果
+- CFO視点：財務・コスト削減効果（損金算入・退職給付費用安定化等）
+- CHRO視点：採用競争力・従業員満足度・離職率改善
+- 経営視点：ESG・健康経営優良法人認定取得等
+
+### 5. 今後のスケジュール案
+- STEP1: 詳細ヒアリング（来月第1週）
+- STEP2: 制度設計案の提示（来月末）
+- STEP3: 最終合意・契約（再来月）
+
+## 文体・表現ルール
+
+1. マークダウン記法は使わない
+2. 保険業法に違反する断定表現は使わない（確実に/絶対に/元本保証 等は禁止）
+3. 箇条書きは「・」を使用
+4. 丁寧語・敬語を使用
+5. 金額・従業員数等の数値は具体的に記載する
+
+## 出力フォーマット
+
+ユーザーに対して以下を提供してください：
+1. 提案書の全文テキスト（上記5セクション）
+2. 「このままStreamlitの提案書ページからPPTX/Wordにエクスポートできます」という案内
+""",
+        "compliance_guidelines": """---
+name: compliance_guidelines
+description: |
+  保険業法・金融商品取引法に基づくコンプライアンスチェックスキル。
+  営業トーク・提案書・メール文面の禁止表現を検出し、適切な修正例を提示します。
+---
+
+# コンプライアンスチェックスキル
+
+あなたは日本生命保険の法人営業におけるコンプライアンス遵守を支援するアシスタントです。
+
+## このスキルが呼び出される条件
+
+以下のような依頼があった場合にこのスキルを使用してください：
+- 「この文章はコンプライアンス上問題ないか確認して」
+- 「この表現は大丈夫？」
+- 「保険業法に違反しないか確認」
+- 「提案書の文言チェック」
+
+## 保険業法・金融商品取引法の主な禁止事項
+
+### カテゴリA: 断定的判断の提供（最重要・絶対禁止）
+- 「確実に」「必ず」「絶対に」＋ 利益・運用成果の断定
+- 「元本保証」「損はしない」「損失が出ない」
+- 「リスクはありません」
+
+修正パターン:
+- NG「確実に年金が増えます」
+- OK「過去の実績では積立が増える傾向にありますが、将来の運用成果を保証するものではございません」
+
+### カテゴリB: 不当な比較・誤解を招く表現
+- 他社商品との根拠のない比較
+- 保障内容の過大表現
+
+### カテゴリC: 不当な勧誘
+- 過度なプレッシャーをかける表現
+- 顧客の利益を顧みない押し売り的表現
+
+### カテゴリD: 重要事項の不告知・誤告知
+- 保険料や保障内容に関する不正確な情報提供
+- 解約時のデメリットを隠す表現
+
+## 重要な注意事項
+このチェックはAIによる参考チェックです。最終的な判断は必ず法令遵守部門にご確認ください。
+"""
+    }
+    stage = '@NIPPONLIFE_DEMO_DB.RAW.NIPPONLIFE_SKILLS'
+    for skill_name, content in skills.items():
+        local_path = f'/tmp/SKILL.md'
+        with open(local_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        session.file.put(local_path, f'{stage}/{skill_name}', auto_compress=False, overwrite=True)
+        os.remove(local_path)
+    return 'Skills uploaded: proposal_generation, compliance_guidelines'
+$$;
+
+CALL NIPPONLIFE_DEMO_DB.RAW.UPLOAD_SKILL_FILES();
+DROP PROCEDURE IF EXISTS NIPPONLIFE_DEMO_DB.RAW.UPLOAD_SKILL_FILES();
 
 CREATE OR REPLACE AGENT NIPPONLIFE_DEMO_DB.RAW.NIPPONLIFE_SALES_AGENT
 FROM SPECIFICATION $$
