@@ -106,7 +106,7 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown("**担当者**: 山田 太郎（法人部）")
-    st.markdown("**デモ環境**: KMOT_DEMO1")
+    st.markdown("**デモ環境**: DEMO")
 
 # メインページ
 st.title("🏢 生命保険会社 法人営業 AI アシスタント")
