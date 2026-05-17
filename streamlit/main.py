@@ -1,18 +1,18 @@
 """
-main.py - 日本生命 法人営業AIアシスタント
+main.py - 生命保険会社 法人営業AIアシスタント
 Snowflake on Streamlit エントリポイント
 """
 import streamlit as st
 from snowflake.snowpark.context import get_active_session
 
 st.set_page_config(
-    page_title="日本生命 法人営業AIアシスタント",
+    page_title="生命保険会社 法人営業AIアシスタント",
     page_icon="🏢",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# CSS スタイル（日本生命ブランドカラー）
+# CSS スタイル（生命保険会社ブランドカラー）
 st.markdown("""
 <style>
 /* プライマリボタン */
@@ -85,7 +85,7 @@ except Exception:
 # サイドバー
 with st.sidebar:
     st.markdown("## 🏢 法人営業AIアシスタント")
-    st.markdown("**日本生命保険相互会社**")
+    st.markdown("**生命保険会社保険相互会社**")
     st.markdown("---")
     st.markdown("### 📋 メニュー")
     st.markdown("👉 左のページリストからお選びください")
@@ -109,7 +109,7 @@ with st.sidebar:
     st.markdown("**デモ環境**: KMOT_DEMO1")
 
 # メインページ
-st.title("🏢 日本生命 法人営業 AI アシスタント")
+st.title("🏢 生命保険会社 法人営業 AI アシスタント")
 st.markdown("### Snowflake Intelligence + Streamlit で営業生産性を劇的に向上")
 
 col1, col2, col3, col4 = st.columns(4)
