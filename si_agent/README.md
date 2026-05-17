@@ -4,7 +4,7 @@
 
 **エージェント名**: `NIPPONLIFE_DEMO_DB.RAW.NIPPONLIFE_SALES_AGENT`
 
-日本生命保険相互会社 法人営業部向け AI アシスタント。
+生命保険会社 法人営業部向け AI アシスタント。
 担当営業担当者が大企業（従業員2,000名以上）への保険提案・営業活動を行う際の全面支援。
 
 ---
@@ -42,7 +42,7 @@ uv run --project "$SKILL_DIR" python "$SKILL_DIR/scripts/create_or_alter_agent.p
   --connection KMOT_DEMO1
 
 # ⚠️ 注意: CREATE OR REPLACE AGENT はコメントを削除するため、毎回以下を実行すること
-snow sql -q "ALTER AGENT NIPPONLIFE_DEMO_DB.RAW.NIPPONLIFE_SALES_AGENT SET COMMENT = '日本生命保険 法人営業AIアシスタント | 担当先企業の事業イベント検知・商品マッチング・提案書作成・コンプライアンスチェックを自然言語でサポート'" -c KMOT_DEMO1
+snow sql -q "ALTER AGENT NIPPONLIFE_DEMO_DB.RAW.NIPPONLIFE_SALES_AGENT SET COMMENT = '生命保険会社 法人営業AIアシスタント | 担当先企業の事業イベント検知・商品マッチング・提案書作成・コンプライアンスチェックを自然言語でサポート'" -c KMOT_DEMO1
 ```
   --role ACCOUNTADMIN \
   --connection KMOT_DEMO1

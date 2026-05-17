@@ -1,10 +1,10 @@
-# 日本生命 法人営業AIアシスタント
+# 生命保険会社 法人営業AIアシスタント
 ## Snowflake Intelligence + Streamlit で実現する営業DX
 
 [![Snowflake](https://img.shields.io/badge/Snowflake-29B5E8?logo=snowflake&logoColor=white)](https://snowflake.com)
 [![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io)
 
-日本生命保険相互会社 法人営業部向けのAIアシスタントデモ。  
+生命保険会社 法人営業部向けのAIアシスタントデモ。  
 Snowflake Intelligence（Cortex Agent）と Streamlit on Snowflake を組み合わせ、**面談前 → 面談中 → 面談後** の営業活動を全面サポートします。
 
 ---
@@ -77,7 +77,7 @@ SNOWFLAKE_CONNECTION_NAME=<接続名> python3 setup.py
 | テーブル | 件数 | 内容 |
 |---------|------|------|
 | `T_CUSTOMER_COMPANIES` | 20社 | 従業員2,000名以上の実在大企業 |
-| `T_INSURANCE_PRODUCTS` | 14商品 | 日本生命公式サイト準拠 |
+| `T_INSURANCE_PRODUCTS` | 14商品 | 生命保険会社公式サイト準拠 |
 | `T_NISSAY_SERVICES` | 5サービス | Wellness-Star・Biz-Create・私募債等 |
 | `T_COMPANY_NEWS` | 401件 | 事業イベント分類・保険適合度付き |
 | `T_EVENT_ALERTS` | 34件 | 未読アラート（M&A・IPO・経営陣交代等） |
